@@ -1,5 +1,6 @@
-from maze_env import Maze
-from RL_brain import DeepQNetwork
+from MazeAgent import DeepQNetwork
+from MazeEnv import MazeEnv
+
 
 def run_maze():
     step = 0  # 为了记录走到第几步，记忆录中积累经验（也就是积累一些transition）之后再开始学习
@@ -39,7 +40,7 @@ def run_maze():
 
 if __name__ == "__main__":
     # maze game
-    env = Maze()
+    env = MazeEnv()
     RL = DeepQNetwork(env.n_actions, env.n_features,
                       learning_rate=0.01,
                       reward_decay=0.9,
@@ -49,5 +50,3 @@ if __name__ == "__main__":
     env.after(100, run_maze)
     env.mainloop()
     RL.plot_cost()
-
-
