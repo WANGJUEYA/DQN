@@ -8,9 +8,10 @@ else:
     import tkinter as tk
 
 UNIT = 40   # pixels
-MAZE_H = 4  # grid height
-MAZE_W = 4  # grid width
+MAZE_H = 8  # grid height
+MAZE_W = 8  # grid width
 
+# TODO 检查迷宫是否正确
 
 class Maze(tk.Tk, object):
     def __init__(self):
@@ -52,7 +53,7 @@ class Maze(tk.Tk, object):
         #     fill='black')
 
         # create oval
-        oval_center = origin + UNIT * 2
+        oval_center = origin + UNIT * 7
         self.oval = self.canvas.create_oval(
             oval_center[0] - 15, oval_center[1] - 15,
             oval_center[0] + 15, oval_center[1] + 15,
