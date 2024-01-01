@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
+# gym=0.26.0 https://blog.csdn.net/qq_43674552/article/details/127344366
+
 # Hyper Parameters 超参数
 EPOCH = 400  # 400个episode循环
 BATCH_SIZE = 32  # 样本数量
