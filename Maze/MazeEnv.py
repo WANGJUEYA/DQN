@@ -1,15 +1,16 @@
 import threading
 
 import numpy
-from gym import Env
+from gym import Env, spaces, logger
 from gym.envs.classic_control import rendering
 
+# 当迷宫尺寸过大时，可以缩小像素，并且取消唯一通路检查！numpy.random.choice([0, 0, 0, 1])
 UNIT = 41  # pixels
 
-LEFT = 'LEFT'
-RIGHT = 'RIGHT'
-UP = 'UP'
-DOWN = 'DOWN'
+LEFT = 0
+RIGHT = 1
+UP = 2
+DOWN = 3
 
 ACTIONS = [LEFT, RIGHT, UP, DOWN]
 ACTIONS_STEP = {
@@ -44,51 +45,79 @@ class MazeEnv(Env):
                 raise Exception("Not Find Path!")
         # 初始化迷宫地图
         self.maze = numpy.array(maze)
-        # 初始化行为选项
-        self.action_space = ACTIONS
         rows, cols = self.maze.shape
+
+        high = numpy.array(
+            [
+                rows * 2,
+                numpy.finfo(numpy.float32).max,
+                cols * 2,
+                numpy.finfo(numpy.float32).max,
+            ],
+            dtype=numpy.float32,
+        )
+
+        # 初始化行为选项
+        self.action_space = spaces.Discrete(4)
+        # 当前状态
+        self.observation_space = 2
+
+        # 初始化起点和终点
         self.rat = (0, 0)
         self.cheese = (rows - 1, cols - 1)  # target cell where the "cheese"
 
         # 当前走过的路径
         self.visited = None
-        # 最小收益
-        self.min_reward = None
-        # 总收益
-        self.total_reward = None
+        # 总步数
+        self.steps_beyond_done = None
         self.reset()
 
     def step(self, action):
         if isinstance(action, int):
             action = ACTIONS[action]
+        err_msg = "%r (%s) invalid" % (action, type(action))
+        assert action in ACTIONS, err_msg
         rows, cols = self.maze.shape
         x, y = ACTIONS_STEP[action]
         sr, sc = self.rat
         nr, nc = sr + x, sc + y
 
+        # 是否移动
+        move = False
         # 如果不是边界或不是障碍，执行下一个
         if 0 <= nr < rows and 0 <= nc < cols and self.maze[nr][nc] == 0:
+            move = True
             self.rat = (nr, nc)
             self.visited.append((sr, sc, action))
 
-        if numpy.array_equal(self.rat, self.cheese):
-            reward = 1
-            done = True
-            self.reset()
-            self.close()
+        # 游戏是否结束
+        done = numpy.array_equal(self.rat, self.cheese)
+        if done:
+            # 如果成功了，返回最大收益
+            reward = 1.0
         else:
-            rows, cols = self.maze.shape
-            reward = -0.1 / (rows * cols)
-            done = False
-        info = {}
+            if move:
+                self.steps_beyond_done += 1
+                # 如果进行了移动，有少量惩罚，促使机器人找到“最短路径”
+                reward = -0.1 / (rows * cols)
+                # 如果走到移动过的位置，加大惩罚; 每次增加 0.1 的惩罚
+                for item in self.visited:
+                    i, j, action = item
+                    if (i, j) == (nr, nc):
+                        reward -= 0.1
+                        if reward < -0.9:
+                            break
+            else:
+                # 不移动进行较多的惩罚
+                reward = -0.9
 
-        return self.rat, reward, done, info
+        return self.rat, reward, done, {}
 
     def reset(self):
         self.rat = (0, 0)
         self.visited = []
-        self.min_reward = -0.5 * self.maze.size
-        self.total_reward = 0
+        self.steps_beyond_done = 0
+        return self.rat
 
     def render(self, mode='human'):
         rows, cols = self.maze.shape
@@ -116,7 +145,7 @@ class MazeEnv(Env):
         # 老鼠，用黄色圆圈
         rat_row, rat_col = self.rat
         rat_row_point, rat_col_point = self.render_point_convert(rat_row, rat_col)
-        self.viewer.draw_circle(18, color=(0.8, 0.6, 0.4)).add_attr(
+        self.viewer.draw_circle((UNIT - 5) / 2, color=(0.8, 0.6, 0.4)).add_attr(
             rendering.Transform(
                 translation=(rat_row_point + (UNIT / 2), rat_col_point + (UNIT / 2))))
 
@@ -180,7 +209,7 @@ class MazeEnv(Env):
         maze = create_maze()
         while MazeEnv.check_maze(maze) is False:
             maze = create_maze()
-        print(maze)
+        logger.info("maze: %s", maze)
         return maze
 
     # 检查迷宫是否有通路
@@ -231,7 +260,7 @@ if __name__ == "__main__":
         global input_thread
         while close is not True:
             input_text = input("w|s|a|d 选择下一步方向:")
-            print(f'你按下了键：{input_text}')
+            logger.info(f'你按下了键：{input_text}')
             if input_text == 'q':
                 close = True
                 break
