@@ -1,7 +1,8 @@
 import numpy
 from gym import Env
+from gym.envs.classic_control import rendering
 
-UNIT = 40  # pixels
+UNIT = 41  # pixels
 
 LEFT = 'LEFT'
 RIGHT = 'RIGHT'
@@ -10,11 +11,22 @@ DOWN = 'DOWN'
 
 ACTIONS = [LEFT, RIGHT, UP, DOWN]
 ACTIONS_STEP = {
-    LEFT: (-1, 0),
-    RIGHT: (1, 0),
-    UP: (0, -1),
-    DOWN: (0, 1),
+    LEFT: (0, -1),
+    RIGHT: (0, 1),
+    UP: (-1, 0),
+    DOWN: (1, 0),
 }
+
+DEFAULT_MAZE = [
+    [0, 1, 0, 0, 0, 0, 1, 0],
+    [0, 0, 0, 1, 0, 1, 0, 0],
+    [0, 1, 1, 1, 0, 0, 0, 0],
+    [0, 1, 1, 1, 0, 0, 1, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0],
+    [1, 0, 0, 1, 1, 1, 0, 0],
+    [0, 1, 1, 1, 0, 0, 0, 1],
+    [0, 0, 0, 1, 1, 0, 0, 0],
+]
 
 
 class MazeEnv(Env):
@@ -45,8 +57,8 @@ class MazeEnv(Env):
     def step(self, action):
         if isinstance(action, int):
             action = ACTIONS[action]
-        self.visited.add(self.rat)
         sr, sc = self.rat
+        self.visited.append((sr, sc, action))
         row, col = ACTIONS_STEP[action]
         self.rat = (sr + row, sc + col)
 
@@ -63,12 +75,11 @@ class MazeEnv(Env):
 
     def reset(self):
         self.rat = (0, 0)
-        self.visited = set()
+        self.visited = []
         self.min_reward = -0.5 * self.maze.size
         self.total_reward = 0
 
     def render(self, mode='human'):
-        from gym.envs.classic_control import rendering
         rows, cols = self.maze.shape
         if self.viewer is None:
             self.viewer = rendering.Viewer((cols + 2) * UNIT, (rows + 2) * UNIT)
@@ -78,16 +89,13 @@ class MazeEnv(Env):
         for j in range(cols + 2):
             self.viewer.draw_line((UNIT * j, UNIT), (UNIT * j, rows * UNIT + UNIT))  # 竖线
 
-        def view_point(i, j):
-            return (j + 1) * UNIT, (rows - i) * UNIT
-
         # 出口，用红色表示出口
-        self.viewer.draw_polygon([(0, 0), (0, UNIT), (UNIT, UNIT), (UNIT, 0)], filled=True,
+        self.viewer.draw_polygon([(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], filled=True,
                                  color=(1, 0, 0)).add_attr(
             rendering.Transform((cols * UNIT, UNIT)))
         # 老鼠，用黄色圆圈
         rat_row, rat_col = self.rat
-        rat_row_point, rat_col_point = view_point(rat_row, rat_col)
+        rat_row_point, rat_col_point = self.render_point_convert(rat_row, rat_col)
         self.viewer.draw_circle(18, color=(0.8, 0.6, 0.4)).add_attr(
             rendering.Transform(
                 translation=(rat_row_point + (UNIT / 2), rat_col_point + (UNIT / 2))))
@@ -95,16 +103,47 @@ class MazeEnv(Env):
         for i in range(rows):
             for j in range(cols):
                 if self.maze[i][j] == 1:
-                    self.viewer.draw_polygon([(0, 0), (0, UNIT), (UNIT, UNIT), (UNIT, 0)], filled=True,
+                    self.viewer.draw_polygon([(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], filled=True,
                                              color=(0, 0, 0)).add_attr(
-                        rendering.Transform(view_point(i, j)))
+                        rendering.Transform(self.render_point_convert(i, j)))
         # 用黄色表示走过的路径
-        for item in self.visited:
-            i, j = item
-            self.viewer.draw_polygon([(0, 0), (0, UNIT), (UNIT, UNIT), (UNIT, 0)], filled=True,
-                                     color=(1, 1, 0)).add_attr(
-                rendering.Transform(view_point(i, j)))
+        self.render_visited_with_dashed_line()
+
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
+
+    def render_point_convert(self, i, j):
+        rows, cols = self.maze.shape
+        return (j + 1) * UNIT, (rows - i) * UNIT
+
+    def render_visited_with_dashed_line(self):
+        bi, bj = self.render_point_convert(0, 0)
+        bi, bj = bi + UNIT / 2, bj + UNIT / 2
+
+        def draw_dashed_line(begin, action_step):
+            debugger is True and print(begin, action_step)
+            li, lj = begin
+            x, y = action_step
+            for step in range(int(UNIT / 4)):
+                ni, nj = li + 2 * y, lj - 2 * x
+                if step % 2 == 0:
+                    debugger is True and print((li, lj))
+                    self.viewer.draw_line((li, lj), (ni, nj))
+                li, lj = ni, nj
+            debugger is True and print((li, lj))
+            debugger is True and print('----------------------')
+            return li, lj
+
+        last = None
+        debugger and print(self.visited)
+        for item in self.visited:
+            i, j, action = item
+
+            self.viewer.draw_polygon([(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], filled=True,
+                                     color=(1, 1, 0)).add_attr(rendering.Transform(self.render_point_convert(i, j)))
+            if last is not None:
+                bi, bj = draw_dashed_line((bi, bj), last)
+            last = ACTIONS_STEP[action]
+            bi, bj = draw_dashed_line((bi, bj), last)
 
     # 生成一个指定长度的迷宫数组
     @staticmethod
@@ -144,8 +183,10 @@ class MazeEnv(Env):
                     directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
                     for dx, dy in directions:
                         nx, ny = x + dx, y + dy
-                        if 0 <= nx < row and 0 <= ny < col and maze[nx][ny] == 0 and dfs(nx, ny):
-                            return True
+                        if 0 <= nx < row and 0 <= ny < col:
+                            if maze[nx][ny] == 0:
+                                dfs(nx, ny)
+                    return True
             return False
 
         # 从左上角开始进行DFS
@@ -153,10 +194,17 @@ class MazeEnv(Env):
         return visited[row - 1][col - 1]
 
 
+debugger = True
 if __name__ == "__main__":
     # print(MazeEnv.random_maze((2, 6)))
+    # env = MazeEnv(DEFAULT_MAZE)
     # env = MazeEnv(None, (2, 6))
     env = MazeEnv()
     env.step(DOWN)
+    env.step(RIGHT)
+    env.step(RIGHT)
+    env.step(RIGHT)
+    env.step(DOWN)
     while True:
         env.render()
+        debugger = False
