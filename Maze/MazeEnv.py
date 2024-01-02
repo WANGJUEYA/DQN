@@ -47,16 +47,6 @@ class MazeEnv(Env):
         self.maze = numpy.array(maze)
         rows, cols = self.maze.shape
 
-        high = numpy.array(
-            [
-                rows * 2,
-                numpy.finfo(numpy.float32).max,
-                cols * 2,
-                numpy.finfo(numpy.float32).max,
-            ],
-            dtype=numpy.float32,
-        )
-
         # 初始化行为选项
         self.action_space = spaces.Discrete(4)
         # 当前状态
@@ -100,17 +90,16 @@ class MazeEnv(Env):
                 self.steps_beyond_done += 1
                 # 如果进行了移动，有少量惩罚，促使机器人找到“最短路径”
                 reward = -0.1 / (rows * cols)
-                # 如果走到移动过的位置，加大惩罚; 每次增加 0.45 的惩罚
+                # 如果走到移动过的位置，加大惩罚; 每次增加 0.3 的惩罚
                 for item in self.visited:
-                    i, j, action = item
+                    i, j, _ = item
                     if (i, j) == (nr, nc):
-                        reward -= 0.45
+                        reward -= 0.3
                         if reward < -0.9:
                             break
             else:
                 # 不移动进行较多的惩罚
-                reward = -0.9
-
+                reward = -1
         return self.rat, reward, done, {}
 
     def reset(self):

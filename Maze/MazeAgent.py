@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 # Hyper Parameters 超参数
 from Maze.MazeEnv import DEFAULT_MAZE, MazeEnv
 
-EPOCH = 400  # 400个episode循环
+EPOCH = 10  # 400个episode循环
 BATCH_SIZE = 32  # 样本数量
 LR = 0.01  # learning rate | 学习率
 EPSILON = 0.9  # greedy policy
@@ -16,7 +16,7 @@ TARGET_REPLACE_ITER = 100  # target update frequency | 目标网络更新频率
 MEMORY_CAPACITY = 2000  # 记忆库容量
 env = MazeEnv(DEFAULT_MAZE)  # 使用自定义迷宫环境
 N_ACTIONS = env.action_space.n  # 老鼠的行为空间
-N_STATES = env.observation_space  # 老鼠的状态空间 成功 or 失败
+N_STATES = env.observation_space  # 老鼠的状态空间 当前位置
 
 """
 torch.nn是专门为神经网络设计的模块化接口。nn构建于Autograd之上，可以用来定义和运行神经网络。
@@ -34,9 +34,9 @@ class Net(nn.Module):
     def __init__(self):  # 定义Net的一系列属性
         # nn.Module的子类函数必须在构造函数中执行父类的构造函数
         super(Net, self).__init__()  # 等价与nn.Module.__init__()
-        self.fc1 = nn.Linear(N_STATES, 20)  # 设置第一个全连接层(输入层到隐藏层): 状态数个神经元到20个神经元
+        self.fc1 = nn.Linear(N_STATES, 100)  # 设置第一个全连接层(输入层到隐藏层): 状态数个神经元到20个神经元
         self.fc1.weight.data.normal_(0, 0.1)  # 权重初始化 (均值为0，方差为0.1的正态分布)
-        self.fc2 = nn.Linear(20, N_ACTIONS)  # 设置第二个全连接层(隐藏层到输出层): 20个神经元到动作数个神经元
+        self.fc2 = nn.Linear(100, N_ACTIONS)  # 设置第二个全连接层(隐藏层到输出层): 20个神经元到动作数个神经元
         self.fc2.weight.data.normal_(0, 0.1)  # 权重初始化 (均值为0，方差为0.1的正态分布)
 
     def forward(self, x):  # 定义forward函数 (x为状态)
