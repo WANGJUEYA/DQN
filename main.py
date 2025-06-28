@@ -39,13 +39,13 @@ def start_training(game_type, episodes=1000, save_interval=50, output_dir="outpu
     print(f"✅ {game_type} 模型训练完成！")
 
 
-def start_inference(game_type, model_name, episodes=5, output_dir="outputs", model_dir="models"):
+def start_inference(game_type, model_name=None, episodes=5, output_dir="outputs", model_dir="models"):
     """
     启动模型推理
     
     Args:
         game_type (str): 游戏类型 ('maze' 或 'cartpole')
-        model_name (str): 模型文件名
+        model_name (str): 模型文件名，如果为None则使用最优模型
         episodes (int): 推理episode数量
         output_dir (str): 输出目录
         model_dir (str): 模型目录
@@ -72,30 +72,31 @@ class DQNProject:
         self.output_dir = Path(output_dir)
         self.model_dir = Path(model_dir)
         
-        # 创建目录结构
-        self._create_directories()
+        # 获取训练编号（count），并创建输出目录结构
+        self.training_number = self._get_training_number_and_create_output_dir()
         
         # 初始化游戏特定的组件
         self._init_game_components()
         
-        # 加载训练计数器
-        self.training_counter = self._load_training_counter()
+        # 初始化收敛分析器
+        self.convergence_analyzer = ConvergenceAnalyzer()
         
-    def _create_directories(self):
-        """创建必要的目录结构"""
-        # 游戏特定的输出目录
-        self.game_output_dir = self.output_dir / self.game_type
+    def _get_training_number_and_create_output_dir(self):
+        """获取当前训练编号，并创建outputs/{gameName}/{count}目录"""
+        game_output_root = self.output_dir / self.game_type
+        game_output_root.mkdir(parents=True, exist_ok=True)
+        # 查找所有数字子目录
+        max_count = 0
+        for d in game_output_root.iterdir():
+            if d.is_dir() and d.name.isdigit():
+                max_count = max(max_count, int(d.name))
+        count = max_count + 1
+        # 创建本次输出目录
+        self.game_output_dir = game_output_root / str(count)
         self.game_output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 游戏特定的模型目录
-        self.game_model_dir = self.model_dir / self.game_type
-        self.game_model_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 子目录
-        (self.game_output_dir / "convergence_analysis").mkdir(exist_ok=True)
-        (self.game_output_dir / "plots").mkdir(exist_ok=True)
-        (self.game_output_dir / "logs").mkdir(exist_ok=True)
+        # 只创建reports目录，其他目录在需要时创建
         (self.game_output_dir / "reports").mkdir(exist_ok=True)
+        return count
         
     def _init_game_components(self):
         """初始化游戏特定的组件"""
@@ -113,58 +114,65 @@ class DQNProject:
         else:
             raise ValueError(f"不支持的游戏类型: {self.game_type}")
             
-        # 初始化收敛分析器
-        self.convergence_analyzer = ConvergenceAnalyzer()
-        
-    def _load_training_counter(self):
-        """加载训练计数器"""
-        counter_file = Path("training_counter.json")
-        if counter_file.exists():
-            with open(counter_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            return {"maze": 0, "cartpole": 0}
-            
-    def _save_training_counter(self):
-        """保存训练计数器"""
-        counter_file = Path("training_counter.json")
-        with open(counter_file, 'w', encoding='utf-8') as f:
-            json.dump(self.training_counter, f, ensure_ascii=False, indent=2)
-            
     def _get_training_number(self):
         """获取当前训练次数并递增"""
-        self.training_counter[self.game_type] += 1
-        self._save_training_counter()
-        return self.training_counter[self.game_type]
+        # 从models目录下的模型文件名中获取当前游戏的最大训练次数
+        max_training_number = 0
+        
+        if self.model_dir.exists():
+            # 查找所有当前游戏的训练模型文件
+            pattern = f"{self.game_type}_dqn_training_*_*.pth"
+            training_models = list(self.model_dir.glob(pattern))
+            
+            for model_file in training_models:
+                # 从文件名中提取训练次数
+                # 格式: {game_type}_dqn_training_{number}_{type}.pth
+                parts = model_file.stem.split('_')
+                if len(parts) >= 4 and parts[0] == self.game_type and parts[1] == "dqn" and parts[2] == "training":
+                    try:
+                        training_number = int(parts[3])
+                        max_training_number = max(max_training_number, training_number)
+                    except ValueError:
+                        continue
+        
+        # 返回最大训练次数加一
+        return max_training_number + 1
         
     def _cleanup_old_models(self, current_training_number):
-        """清理旧的模型文件，只保留最优模型和最后模型"""
-        if self.game_model_dir.exists():
+        """清理旧的模型文件，将过程模型移动到outputs目录，只在models目录保留最优和最后模型"""
+        if self.model_dir.exists():
             # 获取所有模型文件
-            model_files = list(self.game_model_dir.glob("*.pth"))
+            model_files = list(self.model_dir.glob("*.pth"))
             
-            # 保留的文件模式
-            keep_patterns = [
-                f"{self.game_type}_dqn_best.pth",  # 最优模型
-                f"{self.game_type}_dqn_final.pth",  # 最后模型
+            # 保留在models目录的文件模式
+            keep_in_models_patterns = [
+                f"{self.game_type}_dqn_best.pth",  # 全局最优模型
+                f"{self.game_type}_dqn_final.pth",  # 全局最后模型
                 f"{self.game_type}_dqn_training_{current_training_number}_best.pth",  # 当前训练最优
                 f"{self.game_type}_dqn_training_{current_training_number}_final.pth"  # 当前训练最后
             ]
             
-            # 删除不需要的文件
+            # 创建outputs目录用于存储过程模型
+            process_models_dir = self.game_output_dir / "process_models"
+            process_models_dir.mkdir(exist_ok=True)
+            
+            # 处理每个模型文件
             for model_file in model_files:
-                should_keep = False
-                for pattern in keep_patterns:
+                should_keep_in_models = False
+                for pattern in keep_in_models_patterns:
                     if model_file.name == pattern:
-                        should_keep = True
+                        should_keep_in_models = True
                         break
                 
-                if not should_keep:
+                if not should_keep_in_models:
                     try:
-                        model_file.unlink()
-                        print(f"删除旧模型文件: {model_file.name}")
+                        # 将过程模型移动到outputs目录
+                        target_path = process_models_dir / model_file.name
+                        import shutil
+                        shutil.move(str(model_file), str(target_path))
+                        print(f"移动过程模型到: {target_path}")
                     except Exception as e:
-                        print(f"删除文件失败 {model_file.name}: {e}")
+                        print(f"移动模型文件失败 {model_file.name}: {e}")
         
     def train(self, episodes, save_interval=50, model_name=None, render=False):
         """
@@ -263,7 +271,7 @@ class DQNProject:
                 best_episode = episode + 1
                 # 保存最优模型
                 best_model_name = f"{self.game_type}_dqn_training_{training_number}_best.pth"
-                best_model_path = self.game_model_dir / best_model_name
+                best_model_path = self.model_dir / best_model_name
                 self.agent.save_model(str(best_model_path))
                 # 在模型文件中添加奖励信息
                 checkpoint = torch.load(best_model_path, map_location='cpu', weights_only=False)
@@ -281,12 +289,12 @@ class DQNProject:
         
         # 最终保存
         final_model_name = f"{self.game_type}_dqn_training_{training_number}_final.pth"
-        final_model_path = self.game_model_dir / final_model_name
+        final_model_path = self.model_dir / final_model_name
         self.agent.save_model(str(final_model_path))
         
         # 更新全局最优和最后模型
-        global_best_model_path = self.game_model_dir / f"{self.game_type}_dqn_best.pth"
-        global_final_model_path = self.game_model_dir / f"{self.game_type}_dqn_final.pth"
+        global_best_model_path = self.model_dir / f"{self.game_type}_dqn_best.pth"
+        global_final_model_path = self.model_dir / f"{self.game_type}_dqn_final.pth"
         
         # 复制当前训练的最优模型到全局最优（如果更好）
         if best_reward > self._get_global_best_reward():
@@ -321,7 +329,7 @@ class DQNProject:
         
     def _get_global_best_reward(self):
         """获取全局最优模型的奖励值"""
-        global_best_model_path = self.game_model_dir / f"{self.game_type}_dqn_best.pth"
+        global_best_model_path = self.model_dir / f"{self.game_type}_dqn_best.pth"
         if global_best_model_path.exists():
             try:
                 checkpoint = torch.load(global_best_model_path, map_location='cpu', weights_only=False)
@@ -340,10 +348,13 @@ class DQNProject:
         return False
         
     def _save_checkpoint(self, episode, training_number):
-        """保存检查点"""
-        # 保存收敛数据
+        """保存检查点数据"""
+        # 确保convergence_analysis目录存在
+        convergence_dir = self.game_output_dir / "convergence_analysis"
+        convergence_dir.mkdir(exist_ok=True)
+        
         self.convergence_analyzer.save_analysis_data(
-            str(self.game_output_dir / "convergence_analysis" / f"convergence_data_episode_{episode}.json")
+            str(convergence_dir / f"convergence_data_episode_{episode}.json")
         )
         
     def _generate_reports(self, episode):
@@ -357,23 +368,35 @@ class DQNProject:
         # 生成图表（不弹出窗口，只保存文件）
         data_file = str(self.game_output_dir / "convergence_analysis" / f"convergence_data_episode_{episode}.json")
         if os.path.exists(data_file):
+            # 确保plots目录存在
+            plots_dir = self.game_output_dir / "plots"
+            plots_dir.mkdir(exist_ok=True)
+            
             plot_convergence_data(
                 data_file=data_file,
-                save_dir=str(self.game_output_dir / "plots"),
+                save_dir=str(plots_dir),
                 show_plots=False  # 不弹出图表窗口
             )
         
-    def inference(self, model_name, episodes=5):
+    def inference(self, model_name=None, episodes=5):
         """
         模型推理
         
         Args:
-            model_name (str): 模型文件名
+            model_name (str): 模型文件名，如果为None则使用最优模型
             episodes (int): 推理episode数量
         """
         print(f"开始推理 {self.game_name} 模型...")
         
-        model_path = self.game_model_dir / model_name
+        # 如果未指定模型，自动选择最优模型
+        if model_name is None:
+            model_name = self._get_best_model()
+            if model_name is None:
+                print(f"未找到 {self.game_name} 的最优模型，请先训练模型或指定模型文件")
+                return
+            print(f"自动选择最优模型: {model_name}")
+        
+        model_path = self.model_dir / model_name
         if not model_path.exists():
             print(f"模型文件不存在: {model_path}")
             return
@@ -461,8 +484,8 @@ class DQNProject:
     def list_models(self):
         """列出可用的模型"""
         print(f"可用的 {self.game_name} 模型:")
-        if self.game_model_dir.exists():
-            models = list(self.game_model_dir.glob("*.pth"))
+        if self.model_dir.exists():
+            models = list(self.model_dir.glob("*.pth"))
             if models:
                 # 按文件名排序
                 models.sort(key=lambda x: x.name)
@@ -510,6 +533,10 @@ class DQNProject:
                 print("  收敛分析数据:")
                 for file in files:
                     print(f"    - {file.name}")
+            else:
+                print("  收敛分析数据: 无")
+        else:
+            print("  收敛分析数据: 目录不存在")
                     
         # 图表
         plots_dir = self.game_output_dir / "plots"
@@ -519,6 +546,10 @@ class DQNProject:
                 print("  图表文件:")
                 for file in files:
                     print(f"    - {file.name}")
+            else:
+                print("  图表文件: 无")
+        else:
+            print("  图表文件: 目录不存在")
                     
         # 报告
         reports_dir = self.game_output_dir / "reports"
@@ -528,17 +559,104 @@ class DQNProject:
                 print("  报告文件:")
                 for file in files:
                     print(f"    - {file.name}")
+            else:
+                print("  报告文件: 无")
+        else:
+            print("  报告文件: 目录不存在")
+        
+        # 过程模型
+        process_models_dir = self.game_output_dir / "process_models"
+        if process_models_dir.exists():
+            files = list(process_models_dir.glob("*.pth"))
+            if files:
+                print("  过程模型:")
+                for file in files:
+                    print(f"    - {file.name}")
+            else:
+                print("  过程模型: 无")
+        else:
+            print("  过程模型: 目录不存在")
+
+    def _get_best_model(self):
+        """获取最优模型文件名"""
+        if not self.model_dir.exists():
+            return None
+            
+        # 首先尝试查找全局最优模型
+        best_model_path = self.model_dir / f"{self.game_type}_dqn_best.pth"
+        if best_model_path.exists():
+            return best_model_path.name
+            
+        # 如果没有全局最优模型，查找训练历史中的最优模型
+        pattern = f"{self.game_type}_dqn_training_*_best.pth"
+        training_best_models = list(self.model_dir.glob(pattern))
+        
+        if training_best_models:
+            # 找到训练次数最大的最优模型
+            max_training_number = 0
+            best_model = None
+            
+            for model_path in training_best_models:
+                parts = model_path.stem.split('_')
+                if len(parts) >= 4:
+                    try:
+                        training_number = int(parts[3])
+                        if training_number > max_training_number:
+                            max_training_number = training_number
+                            best_model = model_path
+                    except ValueError:
+                        continue
+            
+            if best_model:
+                return best_model.name
+        
+        # 如果都没有，尝试查找最后模型
+        final_model_path = self.model_dir / f"{self.game_type}_dqn_final.pth"
+        if final_model_path.exists():
+            return final_model_path.name
+            
+        return None
+
+
+def normalize_input(input_str, choices, input_type):
+    """
+    标准化输入，支持完整名称和首字母简写
+    
+    Args:
+        input_str (str): 用户输入
+        choices (list): 可选值列表
+        input_type (str): 输入类型描述
+    
+    Returns:
+        str: 标准化后的值
+    """
+    if input_str in choices:
+        return input_str
+    
+    # 尝试首字母匹配
+    for choice in choices:
+        if choice.startswith(input_str.lower()):
+            return choice
+    
+    # 尝试首字母组合匹配（如 'cp' 匹配 'cartpole'）
+    input_lower = input_str.lower()
+    for choice in choices:
+        # 提取首字母
+        initials = ''.join(word[0] for word in choice.split())
+        if initials == input_lower:
+            return choice
+    
+    # 如果都不匹配，抛出错误
+    raise ValueError(f"无效的{input_type}: '{input_str}'。可选值: {', '.join(choices)}")
 
 
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="DQN项目主程序")
     parser.add_argument("--game", "-g", required=True, 
-                       choices=["maze", "cartpole"], 
-                       help="游戏类型 (maze/cartpole)")
+                       help="游戏类型 (maze/m 或 cartpole/cp)")
     parser.add_argument("--mode", "-m", required=True,
-                       choices=["train", "inference", "list-models", "list-outputs"],
-                       help="运行模式")
+                       help="运行模式 (train/t, inference/i, list-models/lm, list-outputs/lo)")
     parser.add_argument("--episodes", "-e", type=int, default=400,
                        help="训练或推理的episode数量 (默认: 400)")
     parser.add_argument("--model", "-M", type=str,
@@ -549,36 +667,57 @@ def main():
                        help="模型目录 (默认: models)")
     parser.add_argument("--save-interval", "-s", type=int, default=50,
                        help="保存间隔 (默认: 50)")
-    parser.add_argument("--render", action="store_true", help="训练时显示可视化动画窗口")
+    parser.add_argument("--render", action="store_true", default=True, help="训练时显示可视化动画窗口（默认启用）")
     
     args = parser.parse_args()
     
+    # 标准化游戏类型输入
+    game_choices = ["maze", "cartpole"]
+    try:
+        game_type = normalize_input(args.game, game_choices, "游戏类型")
+    except ValueError as e:
+        print(f"错误: {e}")
+        print("支持的游戏类型:")
+        print("  maze (m) - 迷宫游戏")
+        print("  cartpole (cp) - 倒立摆游戏")
+        return
+    
+    # 标准化模式输入
+    mode_choices = ["train", "inference", "list-models", "list-outputs"]
+    try:
+        mode = normalize_input(args.mode, mode_choices, "运行模式")
+    except ValueError as e:
+        print(f"错误: {e}")
+        print("支持的运行模式:")
+        print("  train (t) - 训练模型")
+        print("  inference (i) - 推理模型")
+        print("  list-models (lm) - 列出模型")
+        print("  list-outputs (lo) - 列出输出")
+        return
+    
     # 根据模式执行相应操作
-    if args.mode == "train":
+    if mode == "train":
         start_training(
-            game_type=args.game,
+            game_type=game_type,
             episodes=args.episodes,
             save_interval=args.save_interval,
             output_dir=args.output_dir,
             model_dir=args.model_dir,
             render=args.render
         )
-    elif args.mode == "inference":
-        if not args.model:
-            print("推理模式需要指定模型文件 (--model)")
-            return
+    elif mode == "inference":
         start_inference(
-            game_type=args.game,
-            model_name=args.model,
+            game_type=game_type,
+            model_name=args.model,  # 可以为None，此时使用最优模型
             episodes=args.episodes,
             output_dir=args.output_dir,
             model_dir=args.model_dir
         )
-    elif args.mode == "list-models":
-        project = DQNProject(args.game, args.output_dir, args.model_dir)
+    elif mode == "list-models":
+        project = DQNProject(game_type, args.output_dir, args.model_dir)
         project.list_models()
-    elif args.mode == "list-outputs":
-        project = DQNProject(args.game, args.output_dir, args.model_dir)
+    elif mode == "list-outputs":
+        project = DQNProject(game_type, args.output_dir, args.model_dir)
         project.list_outputs()
 
 

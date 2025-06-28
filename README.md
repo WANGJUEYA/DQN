@@ -110,45 +110,28 @@ python -c "import gymnasium; print(gymnasium.__version__)"
 
 #### 使用交互式启动脚本
 ```bash
-# 使用uv启动交互式界面
 uv run python start.py
-
-# 或使用pip（需要先激活虚拟环境）
-python start.py
 ```
 
 #### 使用命令行
 
 **使用uv（推荐）**
 ```bash
-# 训练迷宫游戏（短时间示例）
-uv run python main.py --game maze --mode train --episodes 50
-
 # 训练CartPole（短时间示例）
 uv run python main.py --game cartpole --mode train --episodes 50
 
-# 推理测试
-uv run python main.py --game maze --mode inference --model maze_dqn_final.pth --episodes 5
+# 推理测试（自动选择最优模型）
+uv run python main.py --game cartpole --mode inference --episodes 5
 
 # 查看结果
-uv run python main.py --game maze --mode list-models
-uv run python main.py --game maze --mode list-outputs
+uv run python main.py --game cartpole --mode list-models
 ```
 
 **使用pip（需要先激活虚拟环境）**
 ```bash
-# 训练迷宫游戏（短时间示例）
-python main.py --game maze --mode train --episodes 50
-
-# 训练CartPole（短时间示例）
 python main.py --game cartpole --mode train --episodes 50
-
-# 推理测试
-python main.py --game maze --mode inference --model maze_dqn_final.pth --episodes 5
-
-# 查看结果
-python main.py --game maze --mode list-models
-python main.py --game maze --mode list-outputs
+python main.py --game cartpole --mode inference --episodes 5
+python main.py --game cartpole --mode list-models
 ```
 
 ## 📁 项目结构
@@ -161,7 +144,6 @@ DQN/
 ├── requirements.txt           # pip依赖文件（备用）
 ├── uv.lock                    # 依赖锁定文件
 ├── uv.toml                    # uv配置文件
-├── training_counter.json      # 训练计数器
 ├── README.md                  # 项目说明文档
 ├── .gitignore                 # Git忽略文件配置
 ├── .uv/                       # uv配置目录
@@ -181,26 +163,28 @@ DQN/
 │   ├── Maze/                  # 迷宫游戏模块
 │   │   ├── MazeEnv.py        # 迷宫环境定义
 │   │   ├── MazeAgent.py      # 迷宫DQN智能体
-│   │   └── models/           # 迷宫模型存储目录
-│   │
 │   └── CartPole/             # CartPole游戏模块
 │       └── CartPole.py       # CartPole DQN智能体
 │
-├── models/                    # 全局模型存储目录
-│   ├── maze/                 # 迷宫模型
-│   └── cartpole/             # CartPole模型
+├── models/                    # 全局模型存储目录（只保留最优和最后模型）
+│   ├── cartpole_dqn_best.pth         # CartPole全局最优模型
+│   ├── cartpole_dqn_final.pth        # CartPole全局最后模型
+│   ├── maze_dqn_best.pth              # Maze全局最优模型
+│   └── maze_dqn_final.pth             # Maze全局最后模型
 │
 ├── outputs/                   # 输出文件目录（运行时生成）
 │   ├── maze/                 # 迷宫游戏输出
 │   │   ├── convergence_analysis/  # 收敛分析数据
 │   │   ├── plots/            # 图表文件
 │   │   ├── reports/          # 报告文件
-│   │   └── logs/             # 日志文件
+│   │   ├── logs/             # 日志文件
+│   │   └── process_models/   # 过程模型文件
 │   └── cartpole/             # CartPole输出
 │       ├── convergence_analysis/
 │       ├── plots/
 │       ├── reports/
-│       └── logs/
+│       ├── logs/
+│       └── process_models/   # 过程模型文件
 │
 └── .venv/                    # 虚拟环境目录（uv自动生成）
 ```
@@ -246,72 +230,30 @@ uv shell               # 激活虚拟环境
 ### 常用命令
 
 #### 训练命令
-**使用uv（推荐）**
 ```bash
-# 基本训练
-uv run python main.py --game maze --mode train
+# 使用uv（推荐）
+uv run python main.py --game cartpole --mode train --episodes 200
 
-# 自定义参数训练
-uv run python main.py --game maze --mode train --episodes 200 --save-interval 25
-
-# 自定义输出目录
-uv run python main.py --game maze --mode train --output-dir my_outputs --model-dir my_models
-```
-
-**使用pip（需要先激活虚拟环境）**
-```bash
-# 基本训练
-python main.py --game maze --mode train
-
-# 自定义参数训练
-python main.py --game maze --mode train --episodes 200 --save-interval 25
-
-# 自定义输出目录
-python main.py --game maze --mode train --output-dir my_outputs --model-dir my_models
+# 使用pip（需要先激活虚拟环境）
+python main.py --game cartpole --mode train --episodes 200
 ```
 
 #### 推理命令
-**使用uv（推荐）**
 ```bash
-# 基本推理
-uv run python main.py --game maze --mode inference --model maze_dqn_final.pth
+# 使用uv（推荐）
+uv run python main.py --game cartpole --mode inference --episodes 10
 
-# 自定义推理参数
-uv run python main.py --game maze --mode inference --model maze_dqn_final.pth --episodes 10
-```
-
-**使用pip（需要先激活虚拟环境）**
-```bash
-# 基本推理
-python main.py --game maze --mode inference --model maze_dqn_final.pth
-
-# 自定义推理参数
-python main.py --game maze --mode inference --model maze_dqn_final.pth --episodes 10
+# 使用pip（需要先激活虚拟环境）
+python main.py --game cartpole --mode inference --episodes 10
 ```
 
 #### 查看命令
-**使用uv（推荐）**
 ```bash
-# 查看帮助
-uv run python main.py --help
+# 使用uv（推荐）
+uv run python main.py --game cartpole --mode list-models
 
-# 查看模型列表
-uv run python main.py --game maze --mode list-models
-
-# 查看输出文件
-uv run python main.py --game maze --mode list-outputs
-```
-
-**使用pip（需要先激活虚拟环境）**
-```bash
-# 查看帮助
-python main.py --help
-
-# 查看模型列表
-python main.py --game maze --mode list-models
-
-# 查看输出文件
-python main.py --game maze --mode list-outputs
+# 使用pip（需要先激活虚拟环境）
+python main.py --game cartpole --mode list-models
 ```
 
 ## 📊 收敛分析功能
@@ -408,54 +350,12 @@ python main.py --game maze --mode train --episodes 50
 ### 使用方法
 
 #### 基本使用
-**使用uv（推荐）**
 ```bash
-# 使用默认测试数据生成折线图
+# 使用uv（推荐）
 uv run python framework/plot_convergence.py
 
-# 为指定数据文件生成折线图
-uv run python framework/plot_convergence.py your_data.json
-
-# 指定输出目录
-uv run python framework/plot_convergence.py your_data.json output_plots
-
-# 显示图形化图表（需要matplotlib）
-uv run python framework/plot_convergence.py your_data.json output_plots show
-```
-
-**使用pip（需要先激活虚拟环境）**
-```bash
-# 使用默认测试数据生成折线图
+# 使用pip（需要先激活虚拟环境）
 python framework/plot_convergence.py
-
-# 为指定数据文件生成折线图
-python framework/plot_convergence.py your_data.json
-
-# 指定输出目录
-python framework/plot_convergence.py your_data.json output_plots
-
-# 显示图形化图表（需要matplotlib）
-python framework/plot_convergence.py your_data.json output_plots show
-```
-
-#### 数据文件格式
-折线图工具需要JSON格式的收敛数据文件，包含以下字段：
-
-```json
-{
-    "episode_rewards": [20.5, 25.3, 30.1, ...],      // 每个episode的奖励值
-    "episode_losses": [0.5, 0.4, 0.3, ...],          // 每个episode的损失值（可选）
-    "episode_successes": [0, 1, 1, 0, ...],          // 每个episode是否成功（可选）
-    "episode_epsilons": [0.9, 0.8, 0.7, ...],        // 每个episode的epsilon值（可选）
-    "convergence_metrics": {                          // 收敛指标（可选）
-        "reward_mean": 45.2,
-        "reward_std": 8.5,
-        "reward_stability": 3.2,
-        "convergence_ratio": 1.05,
-        "reward_trend": 0.008,
-        "is_converged": true
-    }
-}
 ```
 
 ## 📋 参数说明
@@ -467,10 +367,11 @@ python framework/plot_convergence.py your_data.json output_plots show
 | `--game` | str | 必需 | 游戏类型：`maze` 或 `cartpole` |
 | `--mode` | str | 必需 | 运行模式：`train`, `inference`, `list-models`, `list-outputs` |
 | `--episodes` | int | 100 | 训练或推理的episode数量 |
-| `--model` | str | - | 推理时使用的模型文件名 |
+| `--model` | str | - | 推理时使用的模型文件名（可选，默认自动选择最优模型） |
 | `--output-dir` | str | `outputs/` | 输出文件目录 |
 | `--model-dir` | str | `models/` | 模型文件目录 |
 | `--save-interval` | int | 50 | 模型保存间隔（episode数） |
+| `--render` | bool | True | 训练时显示可视化动画窗口（默认启用） |
 
 ### 游戏特定参数
 
@@ -513,7 +414,7 @@ A: 查看收敛分析报告，当奖励趋于稳定且趋势平缓时，模型�
 ### 推理问题
 
 **Q: 推理时找不到模型文件？**
-A: 使用 `uv run python main.py --game maze --mode list-models` 或 `python main.py --game maze --mode list-models` 查看可用的模型文件。
+A: 请先完成一次训练，模型会自动保存在 `models/` 目录下。可用 `uv run python main.py --game maze --mode list-models` 查看所有模型文件。
 
 **Q: 推理结果不理想？**
 A: 确保使用的是训练完成的模型，可以尝试重新训练或调整超参数。
@@ -537,6 +438,6 @@ A: 使用 `uv run python framework/plot_convergence.py` 或 `python framework/pl
 
 欢迎提交Issue和Pull Request来改进项目！
 
-## 📄 许可证
+## �� 许可证
 
-本项目采用MIT许可证。 
+本项目采用MIT许可证。
