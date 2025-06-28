@@ -21,7 +21,7 @@ from framework.convergence_analysis import ConvergenceAnalyzer
 from framework.plot_convergence import plot_convergence_data
 
 
-def start_training(game_type, episodes=1000, save_interval=50, output_dir="outputs", model_dir="models"):
+def start_training(game_type, episodes=1000, save_interval=50, output_dir="outputs", model_dir="models", render=False):
     """
     启动模型训练
     
@@ -31,10 +31,11 @@ def start_training(game_type, episodes=1000, save_interval=50, output_dir="outpu
         save_interval (int): 保存间隔
         output_dir (str): 输出目录
         model_dir (str): 模型目录
+        render (bool): 是否在训练时显示可视化动画窗口
     """
     print(f"🚀 启动 {game_type} 模型训练...")
     project = DQNProject(game_type, output_dir, model_dir)
-    project.train(episodes, save_interval)
+    project.train(episodes, save_interval, render=render)
     print(f"✅ {game_type} 模型训练完成！")
 
 
@@ -105,7 +106,8 @@ class DQNProject:
             self.game_name = "Maze"
         elif self.game_type == "cartpole":
             import gymnasium as gym
-            self.env = gym.make('CartPole-v1').unwrapped
+            # CartPole环境需要指定渲染模式
+            self.env = gym.make('CartPole-v1', render_mode='human').unwrapped
             self.agent = DQN()
             self.game_name = "CartPole"
         else:
@@ -164,7 +166,7 @@ class DQNProject:
                     except Exception as e:
                         print(f"删除文件失败 {model_file.name}: {e}")
         
-    def train(self, episodes, save_interval=50, model_name=None):
+    def train(self, episodes, save_interval=50, model_name=None, render=False):
         """
         训练模型
         
@@ -172,6 +174,7 @@ class DQNProject:
             episodes (int): 训练episode数量
             save_interval (int): 保存间隔
             model_name (str): 模型名称
+            render (bool): 是否在训练时显示可视化动画窗口
         """
         print(f"开始训练 {self.game_name} 模型...")
         print(f"训练参数: episodes={episodes}, save_interval={save_interval}")
@@ -202,6 +205,8 @@ class DQNProject:
             success = False
             
             while True:
+                if render:
+                    self.env.render()
                 # 选择动作
                 action = self.agent.choose_action(state)
                 step_result = self.env.step(action)
@@ -225,6 +230,11 @@ class DQNProject:
                 total_reward += reward
                 steps += 1
                 
+                # 每100步输出一次进度
+                if steps % 100 == 0:
+                    current_loss = total_loss / max(steps, 1)
+                    print(f"  Episode {episode + 1}, Step {steps}: Reward={total_reward:.2f}, Loss={current_loss:.4f}")
+                
                 if done:
                     success = self._is_success(episode, steps, total_reward)
                     break
@@ -240,6 +250,13 @@ class DQNProject:
                 epsilon=0.9  # 这里可以根据episode调整
             )
             
+            # 每个回合都输出详细信息
+            print(f"Episode {episode + 1}/{episodes}: "
+                  f"Reward={total_reward:.2f}, "
+                  f"Steps={steps}, "
+                  f"AvgLoss={avg_loss:.4f}, "
+                  f"Success={success}")
+            
             # 检查是否是最优模型
             if total_reward > best_reward:
                 best_reward = total_reward
@@ -254,19 +271,13 @@ class DQNProject:
                 checkpoint['best_episode'] = best_episode
                 checkpoint['training_number'] = training_number
                 torch.save(checkpoint, best_model_path)
-                print(f"发现新的最优模型！Episode {episode + 1}, Reward: {total_reward:.2f}")
+                print(f"  🎉 发现新的最优模型！Episode {episode + 1}, Reward: {total_reward:.2f}")
             
             # 定期保存
             if (episode + 1) % save_interval == 0:
                 self._save_checkpoint(episode + 1, training_number)
                 self._generate_reports(episode + 1)
-                
-            # 打印进度
-            if (episode + 1) % 10 == 0:
-                print(f"Episode {episode + 1}/{episodes}, "
-                      f"Reward: {total_reward:.2f}, "
-                      f"Steps: {steps}, "
-                      f"Success: {success}")
+                print(f"  💾 保存检查点: Episode {episode + 1}")
         
         # 最终保存
         final_model_name = f"{self.game_type}_dqn_training_{training_number}_final.pth"
@@ -287,7 +298,7 @@ class DQNProject:
             checkpoint['best_episode'] = best_episode
             checkpoint['training_number'] = training_number
             torch.save(checkpoint, global_best_model_path)
-            print(f"更新全局最优模型！训练 {training_number}, Episode {best_episode}, Reward: {best_reward:.2f}")
+            print(f"  🌟 更新全局最优模型！训练 {training_number}, Episode {best_episode}, Reward: {best_reward:.2f}")
         
         # 复制当前训练的最后模型到全局最后
         import shutil
@@ -297,12 +308,12 @@ class DQNProject:
         checkpoint['training_number'] = training_number
         checkpoint['final_episode'] = episodes
         torch.save(checkpoint, global_final_model_path)
-        print(f"更新全局最后模型！训练 {training_number}")
+        print(f"  📁 更新全局最后模型！训练 {training_number}")
         
         # 生成最终报告
         self._generate_reports(episodes)
         
-        print(f"训练完成！")
+        print(f"\n🎯 训练完成！")
         print(f"最优模型: {best_model_name} (Episode {best_episode}, Reward: {best_reward:.2f})")
         print(f"最后模型: {final_model_name}")
         print(f"全局最优: {self.game_type}_dqn_best.pth")
@@ -343,12 +354,13 @@ class DQNProject:
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report)
             
-        # 生成图表
+        # 生成图表（不弹出窗口，只保存文件）
         data_file = str(self.game_output_dir / "convergence_analysis" / f"convergence_data_episode_{episode}.json")
         if os.path.exists(data_file):
             plot_convergence_data(
                 data_file=data_file,
-                save_dir=str(self.game_output_dir / "plots")
+                save_dir=str(self.game_output_dir / "plots"),
+                show_plots=False  # 不弹出图表窗口
             )
         
     def inference(self, model_name, episodes=5):
@@ -386,6 +398,20 @@ class DQNProject:
             steps = 0
             
             while True:
+                # 渲染环境（显示动画）
+                self.env.render()
+                
+                # 处理pygame事件，防止窗口假死
+                try:
+                    import pygame
+                    for event in pygame.event.get():
+                        if event.type == pygame.QUIT:
+                            self.env.close()
+                            print("用户关闭了推理窗口")
+                            return
+                except ImportError:
+                    pass  # 如果不是pygame环境，忽略
+                
                 # 使用训练好的模型进行预测
                 action = self.agent.predict_action(state, epsilon=0.0)
                 step_result = self.env.step(action)
@@ -401,6 +427,13 @@ class DQNProject:
                 total_reward += reward
                 steps += 1
                 
+                # 添加适当的延时，让动画更平滑
+                try:
+                    import time
+                    time.sleep(0.05)  # 50ms延时
+                except ImportError:
+                    pass
+                
                 if done:
                     success = self._is_success(episode, steps, total_reward)
                     if success:
@@ -411,6 +444,9 @@ class DQNProject:
             total_steps.append(steps)
             
             print(f"Episode {episode + 1}: Reward={total_reward:.2f}, Steps={steps}, Success={success}")
+        
+        # 关闭环境
+        self.env.close()
         
         # 打印统计信息
         avg_reward = sum(total_rewards) / len(total_rewards)
@@ -513,6 +549,7 @@ def main():
                        help="模型目录 (默认: models)")
     parser.add_argument("--save-interval", "-s", type=int, default=50,
                        help="保存间隔 (默认: 50)")
+    parser.add_argument("--render", action="store_true", help="训练时显示可视化动画窗口")
     
     args = parser.parse_args()
     
@@ -523,7 +560,8 @@ def main():
             episodes=args.episodes,
             save_interval=args.save_interval,
             output_dir=args.output_dir,
-            model_dir=args.model_dir
+            model_dir=args.model_dir,
+            render=args.render
         )
     elif args.mode == "inference":
         if not args.model:

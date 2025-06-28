@@ -22,8 +22,8 @@ GAMMA = 0.9  # reward discount
 TARGET_REPLACE_ITER = 100  # target update frequency | 目标网络更新频率
 MEMORY_CAPACITY = 2000  # 记忆库容量
 env = MazeEnv(DEFAULT_MAZE)  # 使用自定义迷宫环境
-N_ACTIONS = env.action_space.n  # 老鼠的行为空间
-N_STATES = env.observation_space  # 老鼠的状态空间 当前位置
+N_ACTIONS = 4  # 老鼠的行为空间 (上下左右4个动作)
+N_STATES = 2  # 老鼠的状态空间维度 (x, y坐标)
 
 # 模型保存路径
 MODEL_SAVE_DIR = "models"

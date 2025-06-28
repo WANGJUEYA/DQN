@@ -25,7 +25,6 @@ ENV/
 
 # uv
 .uv/
-uv.lock
 .uv_cache/
 
 # IDE
@@ -46,10 +45,6 @@ models/
 *.log
 training_counter.json
 convergence_data/
-*.png
-*.jpg
-*.jpeg
-*.pdf
 
 # 临时文件
 *.tmp

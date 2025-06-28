@@ -49,17 +49,17 @@ class MazeEnv(Env):
 
         # 初始化行为选项
         self.action_space = spaces.Discrete(4)
-        # 当前状态
-        self.observation_space = 2
+        # 当前状态 - 修改为向量格式 (x, y)
+        self.observation_space = spaces.Box(low=0, high=max(rows, cols), shape=(2,), dtype=numpy.float32)
 
         # 初始化起点和终点
         self.rat = (0, 0)
         self.cheese = (rows - 1, cols - 1)  # target cell where the "cheese"
 
         # 当前走过的路径
-        self.visited = None
+        self.visited = []
         # 总步数
-        self.steps_beyond_done = None
+        self.steps_beyond_done = 0
         self.reset()
 
     def step(self, action):
@@ -100,18 +100,23 @@ class MazeEnv(Env):
             else:
                 # 不移动进行较多的惩罚
                 reward = -0.1
-        return self.rat, reward, done, {}
+        
+        # 返回状态向量而不是元组
+        state_vector = numpy.array([self.rat[0], self.rat[1]], dtype=numpy.float32)
+        return state_vector, reward, done, {}
 
     def reset(self):
         self.rat = (0, 0)
         self.visited = []
         self.steps_beyond_done = 0
-        return self.rat
+        # 返回状态向量而不是元组
+        state_vector = numpy.array([self.rat[0], self.rat[1]], dtype=numpy.float32)
+        return state_vector
 
     def render(self, mode='human'):
         rows, cols = self.maze.shape
         if self.viewer is None:
-            self.viewer = pygame.display.set_mode((cols + 2) * UNIT, (rows + 2) * UNIT)
+            self.viewer = pygame.display.set_mode(((cols + 2) * UNIT, (rows + 2) * UNIT))
         # 画网格
         for i in range(rows + 2):
             pygame.draw.line(self.viewer, (0, 0, 0), (UNIT, UNIT * i), (cols * UNIT + UNIT, UNIT * i))  # 横线
@@ -139,6 +144,8 @@ class MazeEnv(Env):
         return (j + 1) * UNIT, (rows - i) * UNIT
 
     def render_visited_with_dashed_line(self):
+        if self.viewer is None:
+            return
         bi, bj = self.render_point_convert(0, 0)
         bi, bj = bi + UNIT / 2, bj + UNIT / 2
 

@@ -173,7 +173,7 @@ class ConvergenceAnalyzer:
         is_stable = metrics['reward_stability'] < stability_threshold
         is_flat_trend = abs(metrics['reward_trend']) < trend_threshold
         
-        return is_stable and is_flat_trend
+        return bool(is_stable and is_flat_trend)  # 确保返回Python原生布尔类型
     
     def plot_convergence_analysis(self, save_path=None, show_plot=True):
         """绘制收敛分析图表"""
@@ -361,6 +361,22 @@ class ConvergenceAnalyzer:
     
     def save_analysis_data(self, filepath):
         """保存分析数据到JSON文件"""
+        # 转换numpy类型为Python原生类型
+        def convert_numpy_types(obj):
+            # 处理numpy标量类型
+            if hasattr(obj, 'item'):  # numpy标量类型都有item()方法
+                return obj.item()
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {key: convert_numpy_types(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy_types(item) for item in obj]
+            elif isinstance(obj, tuple):
+                return tuple(convert_numpy_types(item) for item in obj)
+            else:
+                return obj
+        
         data = {
             'episode_rewards': self.episode_rewards,
             'episode_losses': self.episode_losses,
@@ -371,6 +387,9 @@ class ConvergenceAnalyzer:
             'window_size': self.window_size,
             'smoothing_factor': self.smoothing_factor
         }
+        
+        # 转换所有numpy类型
+        data = convert_numpy_types(data)
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
