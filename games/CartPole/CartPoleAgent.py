@@ -1,9 +1,9 @@
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from framework.BaseAgent import BaseAgent
-from games.Maze.MazeEnv import DEFAULT_MAZE, MazeEnv
 
 # Hyper Parameters 超参数
 BATCH_SIZE = 32  # 样本数量
@@ -12,8 +12,8 @@ EPSILON = 0.9  # greedy policy
 GAMMA = 0.9  # reward discount
 TARGET_REPLACE_ITER = 100  # target update frequency | 目标网络更新频率
 MEMORY_CAPACITY = 2000  # 记忆库容量
-N_ACTIONS = 4  # 老鼠的行为空间 (上下左右4个动作)
-N_STATES = 2  # 老鼠的状态空间维度 (x, y坐标)
+N_ACTIONS = 2  # 杆子动作个数 (2个)
+N_STATES = 4  # 杆子状态个数 (4个)
 
 """
 torch.nn是专门为神经网络设计的模块化接口。nn构建于Autograd之上，可以用来定义和运行神经网络。
@@ -31,24 +31,22 @@ class Net(nn.Module):
     def __init__(self):  # 定义Net的一系列属性
         # nn.Module的子类函数必须在构造函数中执行父类的构造函数
         super(Net, self).__init__()  # 等价与nn.Module.__init__()
-        self.fc1 = nn.Linear(N_STATES, 100)  # 设置第一个全连接层(输入层到隐藏层): 状态数个神经元到20个神经元
+        self.fc1 = nn.Linear(N_STATES, 20)  # 设置第一个全连接层(输入层到隐藏层): 状态数个神经元到20个神经元
         self.fc1.weight.data.normal_(0, 0.1)  # 权重初始化 (均值为0，方差为0.1的正态分布)
-        self.fc2 = nn.Linear(100, N_ACTIONS)  # 设置第二个全连接层(隐藏层到输出层): 20个神经元到动作数个神经元
+        self.fc2 = nn.Linear(20, N_ACTIONS)  # 设置第二个全连接层(隐藏层到输出层): 20个神经元到动作数个神经元
         self.fc2.weight.data.normal_(0, 0.1)  # 权重初始化 (均值为0，方差为0.1的正态分布)
 
     def forward(self, x):  # 定义forward函数 (x为状态)
         x = F.relu(self.fc1(x))  # 连接输入层到隐藏层，且使用激励函数ReLU来处理经过隐藏层后的值
         return self.fc2(x)  # 连接隐藏层到输出层，获得最终的输出值 (即动作值)
 
-# 定义DQN类 (定义两个网络)
-class MazeAgent(BaseAgent):
+class CartPoleAgent(BaseAgent):
 
     def _init_env_and_agent(self):
-        self.env = MazeEnv(DEFAULT_MAZE)
-        self.agent = self  # 兼容基类接口
-        rows, cols = self.env.maze.shape
-        self._max_steps = rows * cols * 10
-        self._game_name = "Maze"
+        self.env = gym.make('CartPole-v1', render_mode='human')
+        self.agent = self
+        self._max_steps = 500
+        self._game_name = "CartPole"
         self.target_net, self.evaluate_net = Net(), Net()
         self.memory = np.zeros((MEMORY_CAPACITY, N_STATES * 2 + 2))
         self.loss_Function = nn.MSELoss()
@@ -57,7 +55,7 @@ class MazeAgent(BaseAgent):
         self.learn_step = 0
 
     def _is_success(self, episode, steps, reward):
-        return reward > 0 or self.env.rat == self.env.cheese
+        return steps >= 500
 
     def _get_max_steps(self):
         return self._max_steps
@@ -67,13 +65,21 @@ class MazeAgent(BaseAgent):
         return self._game_name
 
     def choose_action(self, s):  # 定义动作选择函数 (s为状态)
+        # 确保状态是正确的格式
+        if isinstance(s, tuple):
+            s = s[0]  # 如果是元组，取第一个元素（状态）
         s = torch.unsqueeze(torch.FloatTensor(s), 0)  # 将s转换成32-bit floating point形式，并在dim=0增加维数为1的维度
         if np.random.uniform() < EPSILON:  # epsilon-greedy 生成一个在[0, 1)内的随机数，如果小于EPSILON，选择最优动作
             return torch.max(self.evaluate_net.forward(s), 1)[1].data.numpy()[0]  # 通过对评估网络输入状态s，前向传播获得动作值
         else:  # 随机选择动作
-            return np.random.randint(0, N_ACTIONS)  # 这里action随机等于0|1|2|3 (N_ACTIONS = 4)
+            return np.random.randint(0, N_ACTIONS)  # 这里action随机等于0或1 (N_ACTIONS = 2)
 
     def store_transition(self, s, a, r, s_):  # 定义记忆存储函数 (这里输入为一个transition)
+        # 确保状态是正确的格式
+        if isinstance(s, tuple):
+            s = s[0]
+        if isinstance(s_, tuple):
+            s_ = s_[0]
         self.memory[self.point % MEMORY_CAPACITY, :] = np.hstack((s, [a, r], s_))  # 如果记忆库满了，便覆盖旧的数据
         self.point += 1  # memory_counter自加1
 
@@ -116,6 +122,9 @@ class MazeAgent(BaseAgent):
 
     def predict_action(self, s, epsilon=0.0):  # 推理预测函数，用于模型推理
         """推理预测函数，epsilon=0表示完全贪婪策略"""
+        # 确保状态是正确的格式
+        if isinstance(s, tuple):
+            s = s[0]  # 如果是元组，取第一个元素（状态）
         s = torch.unsqueeze(torch.FloatTensor(s), 0)
         if np.random.uniform() < epsilon:  # 如果epsilon>0，仍然有探索
             return np.random.randint(0, N_ACTIONS)
