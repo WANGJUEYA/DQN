@@ -83,6 +83,10 @@ def create_text_plots(data: Dict, save_dir: str):
 
 def create_reward_text_plot(episodes: List[int], rewards: List[float], save_dir: str):
     """创建奖励文本折线图"""
+    if not rewards:
+        print("没有奖励数据可供绘制")
+        return
+        
     avg_reward = sum(rewards) / len(rewards)
     max_reward = max(rewards)
     min_reward = min(rewards)
@@ -97,16 +101,20 @@ def create_reward_text_plot(episodes: List[int], rewards: List[float], save_dir:
     chart_lines.append(f"最低奖励: {min_reward:.2f}")
     chart_lines.append("")
     
-    # 分段统计
-    segments = 5
-    segment_size = len(rewards) // segments
-    chart_lines.append("分段统计:")
-    for i in range(segments):
-        start_idx = i * segment_size
-        end_idx = (i + 1) * segment_size if i < segments - 1 else len(rewards)
-        segment_rewards = rewards[start_idx:end_idx]
-        avg_segment = sum(segment_rewards) / len(segment_rewards)
-        chart_lines.append(f"第{i+1}段 (Episode {start_idx+1}-{end_idx}): 平均奖励 {avg_segment:.2f}")
+    # 分段统计 - 根据数据量调整分段数
+    if len(rewards) >= 5:
+        segments = min(5, len(rewards) // 2)  # 确保每段至少有2个数据点
+        segment_size = max(1, len(rewards) // segments)
+        chart_lines.append("分段统计:")
+        for i in range(segments):
+            start_idx = i * segment_size
+            end_idx = (i + 1) * segment_size if i < segments - 1 else len(rewards)
+            segment_rewards = rewards[start_idx:end_idx]
+            if segment_rewards:  # 确保段不为空
+                avg_segment = sum(segment_rewards) / len(segment_rewards)
+                chart_lines.append(f"第{i+1}段 (Episode {start_idx+1}-{end_idx}): 平均奖励 {avg_segment:.2f}")
+    else:
+        chart_lines.append("数据量较少，跳过分段统计")
     
     chart_lines.append("=" * 60)
     
@@ -120,6 +128,10 @@ def create_reward_text_plot(episodes: List[int], rewards: List[float], save_dir:
 
 def create_loss_text_plot(episodes: List[int], losses: List[float], save_dir: str):
     """创建损失文本折线图"""
+    if not losses:
+        print("没有损失数据可供绘制")
+        return
+        
     avg_loss = sum(losses) / len(losses)
     max_loss = max(losses)
     min_loss = min(losses)
@@ -134,16 +146,20 @@ def create_loss_text_plot(episodes: List[int], losses: List[float], save_dir: st
     chart_lines.append(f"最低损失: {min_loss:.4f}")
     chart_lines.append("")
     
-    # 分段统计
-    segments = 5
-    segment_size = len(losses) // segments
-    chart_lines.append("分段统计:")
-    for i in range(segments):
-        start_idx = i * segment_size
-        end_idx = (i + 1) * segment_size if i < segments - 1 else len(losses)
-        segment_losses = losses[start_idx:end_idx]
-        avg_segment = sum(segment_losses) / len(segment_losses)
-        chart_lines.append(f"第{i+1}段 (Episode {start_idx+1}-{end_idx}): 平均损失 {avg_segment:.4f}")
+    # 分段统计 - 根据数据量调整分段数
+    if len(losses) >= 5:
+        segments = min(5, len(losses) // 2)  # 确保每段至少有2个数据点
+        segment_size = max(1, len(losses) // segments)
+        chart_lines.append("分段统计:")
+        for i in range(segments):
+            start_idx = i * segment_size
+            end_idx = (i + 1) * segment_size if i < segments - 1 else len(losses)
+            segment_losses = losses[start_idx:end_idx]
+            if segment_losses:  # 确保段不为空
+                avg_segment = sum(segment_losses) / len(segment_losses)
+                chart_lines.append(f"第{i+1}段 (Episode {start_idx+1}-{end_idx}): 平均损失 {avg_segment:.4f}")
+    else:
+        chart_lines.append("数据量较少，跳过分段统计")
     
     chart_lines.append("=" * 60)
     
@@ -156,6 +172,10 @@ def create_loss_text_plot(episodes: List[int], losses: List[float], save_dir: st
 
 def create_success_text_plot(episodes: List[int], successes: List[float], save_dir: str):
     """创建成功率文本折线图"""
+    if not successes:
+        print("没有成功率数据可供绘制")
+        return
+        
     overall_success_rate = sum(successes) / len(successes)
     
     chart_lines = []
@@ -166,16 +186,20 @@ def create_success_text_plot(episodes: List[int], successes: List[float], save_d
     chart_lines.append(f"总体成功率: {overall_success_rate:.2%}")
     chart_lines.append("")
     
-    # 分段统计
-    segments = 5
-    segment_size = len(successes) // segments
-    chart_lines.append("分段统计:")
-    for i in range(segments):
-        start_idx = i * segment_size
-        end_idx = (i + 1) * segment_size if i < segments - 1 else len(successes)
-        segment_successes = successes[start_idx:end_idx]
-        avg_segment = sum(segment_successes) / len(segment_successes)
-        chart_lines.append(f"第{i+1}段 (Episode {start_idx+1}-{end_idx}): 成功率 {avg_segment:.2%}")
+    # 分段统计 - 根据数据量调整分段数
+    if len(successes) >= 5:
+        segments = min(5, len(successes) // 2)  # 确保每段至少有2个数据点
+        segment_size = max(1, len(successes) // segments)
+        chart_lines.append("分段统计:")
+        for i in range(segments):
+            start_idx = i * segment_size
+            end_idx = (i + 1) * segment_size if i < segments - 1 else len(successes)
+            segment_successes = successes[start_idx:end_idx]
+            if segment_successes:  # 确保段不为空
+                avg_segment = sum(segment_successes) / len(segment_successes)
+                chart_lines.append(f"第{i+1}段 (Episode {start_idx+1}-{end_idx}): 成功率 {avg_segment:.2%}")
+    else:
+        chart_lines.append("数据量较少，跳过分段统计")
     
     chart_lines.append("=" * 60)
     
@@ -427,50 +451,40 @@ def create_loss_graphical_plot(episodes: List[int], losses: List[float], save_di
 
 def create_success_graphical_plot(episodes: List[int], successes: List[float], save_dir: str, show_plots: bool, training_info: Dict):
     """创建成功率图形化折线图"""
-    plt.figure(figsize=(12, 8))
+    if not MATPLOTLIB_AVAILABLE:
+        print("matplotlib未安装，跳过成功率图形化图表生成")
+        return
+    if not successes:
+        print("没有成功率数据可供绘制")
+        return
     
-    # 计算移动成功率
-    window_size = min(20, len(successes) // 5)
+    plt.figure(figsize=(10, 5))
+    plt.plot(episodes, successes, label="成功(1)/失败(0)", color="orange", alpha=0.5)
+    
+    # 计算滑动窗口成功率
+    window_size = min(20, len(successes))
     success_rates = []
-    for i in range(len(successes)):
-        start_idx = max(0, i - window_size + 1)
-        window_successes = successes[start_idx:i+1]
-        success_rates.append(sum(window_successes) / len(window_successes))
+    window_episodes = []
+    for i in range(0, len(successes), window_size):
+        window_successes = successes[i:i+window_size]
+        if len(window_successes) > 0:
+            success_rates.append(sum(window_successes) / len(window_successes))
+            window_episodes.append(episodes[i+window_size//2] if i+window_size//2 < len(episodes) else episodes[-1])
+    if success_rates:
+        plt.plot(window_episodes, success_rates, label=f"滑动窗口({window_size})成功率", color="red", linewidth=2)
     
-    plt.plot(episodes, success_rates, color='green', label=f'成功率({window_size}窗口)', linewidth=2)
-    
-    # 添加目标线
-    plt.axhline(y=0.8, color='orange', linestyle='--', alpha=0.7, label='目标成功率(80%)')
-    plt.axhline(y=0.9, color='red', linestyle='--', alpha=0.7, label='优秀成功率(90%)')
-    
-    plt.title('DQN训练过程 - Episode成功率变化', fontsize=16, fontweight='bold')
-    plt.xlabel('Episode', fontsize=12)
-    plt.ylabel('成功率', fontsize=12)
-    plt.ylim(0, 1)
+    plt.xlabel("Episode")
+    plt.ylabel("成功率")
+    plt.title("DQN训练过程 - 成功率变化")
     plt.legend()
     plt.grid(True, alpha=0.3)
     
-    # 添加统计信息
-    overall_success_rate = sum(successes) / len(successes)
-    recent_success_rate = sum(successes[-window_size:]) / len(successes[-window_size:]) if len(successes) >= window_size else overall_success_rate
-    plt.text(0.02, 0.98, f'总体成功率: {overall_success_rate:.2%}\n最近成功率: {recent_success_rate:.2%}', 
-            transform=plt.gca().transAxes, verticalalignment='top',
-            bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
-    
-    # 添加训练信息
-    add_training_info_to_plot(training_info)
-    
-    plt.tight_layout()
-    
-    # 保存图片
     save_path = os.path.join(save_dir, 'success_rates_plot.png')
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     print(f"成功率折线图(图形)已保存到: {save_path}")
-    
     if show_plots:
         plt.show()
-    else:
-        plt.close()
+    plt.close()
 
 def create_epsilon_graphical_plot(episodes: List[int], epsilons: List[float], save_dir: str, show_plots: bool, training_info: Dict):
     """创建Epsilon图形化折线图"""
@@ -551,7 +565,10 @@ def create_comprehensive_graphical_plot(episodes: List[int], rewards: List[float
         for i in range(len(successes)):
             start_idx = max(0, i - window_size + 1)
             window_successes = successes[start_idx:i+1]
-            success_rates.append(sum(window_successes) / len(window_successes))
+            if len(window_successes) > 0:
+                success_rates.append(sum(window_successes) / len(window_successes))
+            else:
+                success_rates.append(0)
         ax3.plot(episodes, success_rates, color='green', linewidth=2)
         ax3.axhline(y=0.8, color='orange', linestyle='--', alpha=0.7)
     ax3.set_title('成功率变化')

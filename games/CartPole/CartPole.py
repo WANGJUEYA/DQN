@@ -179,7 +179,7 @@ class DQN(object):
             full_path = os.path.join(MODEL_SAVE_DIR, model_path)
             
         if os.path.exists(full_path):
-            checkpoint = torch.load(full_path)
+            checkpoint = torch.load(full_path, weights_only=False)  # 添加weights_only=False参数
             self.evaluate_net.load_state_dict(checkpoint['evaluate_net_state_dict'])
             self.target_net.load_state_dict(checkpoint['target_net_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
