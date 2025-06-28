@@ -1,1 +1,68 @@
-/.idea/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# PyTorch模型文件
+*.pth
+*.pt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# 虚拟环境
+.env
+.venv
+env/
+venv/
+ENV/
+
+# uv
+.uv/
+uv.lock
+.uv_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 项目特定
+outputs/
+models/
+*.log
+training_counter.json
+convergence_data/
+*.png
+*.jpg
+*.jpeg
+*.pdf
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+
+# 数据文件
+*.csv
+*.json
+!pyproject.toml
+!uv.lock
+
+# 备份文件
+*.bak
+*.backup

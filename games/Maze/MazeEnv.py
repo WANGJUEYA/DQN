@@ -1,8 +1,8 @@
 import threading
 
 import numpy
-from gym import Env, spaces, logger
-from gym.envs.classic_control import rendering
+from gymnasium import Env, spaces, logger
+import pygame
 
 # 当迷宫尺寸过大时，可以缩小像素，并且取消唯一通路检查！numpy.random.choice([0, 0, 0, 1])
 UNIT = 41  # pixels
@@ -88,7 +88,7 @@ class MazeEnv(Env):
         else:
             if move:
                 self.steps_beyond_done += 1
-                # 如果进行了移动，有少量惩罚，促使机器人找到“最短路径”
+                # 如果进行了移动，有少量惩罚，促使机器人找到"最短路径"
                 reward = -0.01 / (rows * cols)
                 # 如果走到移动过的位置，加大惩罚; 每次增加 0.3 的惩罚
                 for item in self.visited:
@@ -111,34 +111,28 @@ class MazeEnv(Env):
     def render(self, mode='human'):
         rows, cols = self.maze.shape
         if self.viewer is None:
-            self.viewer = rendering.Viewer((cols + 2) * UNIT, (rows + 2) * UNIT)
+            self.viewer = pygame.display.set_mode((cols + 2) * UNIT, (rows + 2) * UNIT)
         # 画网格
         for i in range(rows + 2):
-            self.viewer.draw_line((UNIT, UNIT * i), (cols * UNIT + UNIT, UNIT * i))  # 横线
+            pygame.draw.line(self.viewer, (0, 0, 0), (UNIT, UNIT * i), (cols * UNIT + UNIT, UNIT * i))  # 横线
         for j in range(cols + 2):
-            self.viewer.draw_line((UNIT * j, UNIT), (UNIT * j, rows * UNIT + UNIT))  # 竖线
+            pygame.draw.line(self.viewer, (0, 0, 0), (UNIT * j, UNIT), (UNIT * j, rows * UNIT + UNIT))  # 竖线
 
         # 出口，用红色表示出口
-        self.viewer.draw_polygon([(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], filled=True,
-                                 color=(1, 0, 0)).add_attr(
-            rendering.Transform((cols * UNIT, UNIT)))
+        pygame.draw.polygon(self.viewer, (255, 0, 0), [(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], 0)
         # 用黑色表示墙
         for i in range(rows):
             for j in range(cols):
                 if self.maze[i][j] == 1:
-                    self.viewer.draw_polygon([(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], filled=True,
-                                             color=(0, 0, 0)).add_attr(
-                        rendering.Transform(self.render_point_convert(i, j)))
+                    pygame.draw.polygon(self.viewer, (0, 0, 0), [(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], 0)
         # 用黄色表示走过的路径
         self.render_visited_with_dashed_line()
         # 老鼠，用黄色圆圈
         rat_row, rat_col = self.rat
         rat_row_point, rat_col_point = self.render_point_convert(rat_row, rat_col)
-        self.viewer.draw_circle((UNIT - 5) / 2, color=(0.8, 0.6, 0.4)).add_attr(
-            rendering.Transform(
-                translation=(rat_row_point + (UNIT / 2), rat_col_point + (UNIT / 2))))
+        pygame.draw.circle(self.viewer, (255, 255, 0), (rat_row_point + (UNIT / 2), rat_col_point + (UNIT / 2)), int(UNIT / 2 - 5))
 
-        return self.viewer.render(return_rgb_array=mode == 'rgb_array')
+        pygame.display.flip()
 
     def render_point_convert(self, i, j):
         rows, cols = self.maze.shape
@@ -154,7 +148,7 @@ class MazeEnv(Env):
             for step in range(int(UNIT / 4)):
                 ni, nj = li + 2 * y, lj - 2 * x
                 if step % 2 == 0:
-                    self.viewer.draw_line((li, lj), (ni, nj))
+                    pygame.draw.line(self.viewer, (0, 0, 0), (li, lj), (ni, nj))
                 li, lj = ni, nj
             return li, lj
 
@@ -165,9 +159,7 @@ class MazeEnv(Env):
             find = (i, j) in exist
             # 没有走过才用黄色覆盖
             if find is not True:
-                self.viewer.draw_polygon(
-                    [(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], filled=True,
-                    color=(1, 1, 0)).add_attr(rendering.Transform(self.render_point_convert(i, j)))
+                pygame.draw.polygon(self.viewer, (255, 255, 0), [(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], 0)
             exist.add((i, j))
 
             if last is not None:
@@ -177,7 +169,7 @@ class MazeEnv(Env):
 
     def close(self):
         if self.viewer:
-            self.viewer.close()
+            pygame.quit()
             self.viewer = None
 
     # 生成一个指定长度的迷宫数组
@@ -248,21 +240,24 @@ if __name__ == "__main__":
         global action
         global input_thread
         while close is not True:
-            input_text = input("w|s|a|d 选择下一步方向:")
-            logger.info(f'你按下了键：{input_text}')
-            if input_text == 'q':
-                close = True
-                break
-            elif input_text == 'w':
-                action = UP
-            elif input_text == 's':
-                action = DOWN
-            elif input_text == 'a':
-                action = LEFT
-            elif input_text == 'd':
-                action = RIGHT
-            else:
-                action = None
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    close = True
+                    break
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_q:
+                        close = True
+                        break
+                    elif event.key == pygame.K_w:
+                        action = UP
+                    elif event.key == pygame.K_s:
+                        action = DOWN
+                    elif event.key == pygame.K_a:
+                        action = LEFT
+                    elif event.key == pygame.K_d:
+                        action = RIGHT
+                    else:
+                        action = None
 
 
     input_thread = threading.Thread(target=on_key)
