@@ -89,17 +89,17 @@ class MazeEnv(Env):
             if move:
                 self.steps_beyond_done += 1
                 # 如果进行了移动，有少量惩罚，促使机器人找到“最短路径”
-                reward = -0.1 / (rows * cols)
+                reward = -0.01 / (rows * cols)
                 # 如果走到移动过的位置，加大惩罚; 每次增加 0.3 的惩罚
                 for item in self.visited:
                     i, j, _ = item
                     if (i, j) == (nr, nc):
-                        reward -= 0.3
+                        reward -= 0.03
                         if reward < -0.9:
                             break
             else:
                 # 不移动进行较多的惩罚
-                reward = -1
+                reward = -0.1
         return self.rat, reward, done, {}
 
     def reset(self):

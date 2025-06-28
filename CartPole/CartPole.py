@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+import os
+import json
 
 # gym=0.26.0 https://blog.csdn.net/qq_43674552/article/details/127344366
 
@@ -19,6 +21,10 @@ env = gym.make('CartPole-v0')  # 使用gym库中的环境：CartPole，且打开
 env = env.unwrapped  # 打开环境封装
 N_ACTIONS = env.action_space.n  # 杆子动作个数 (2个)
 N_STATES = env.observation_space.shape[0]  # 杆子状态个数 (4个)
+
+# 模型保存路径
+MODEL_SAVE_DIR = "models"
+os.makedirs(MODEL_SAVE_DIR, exist_ok=True)
 
 """
 torch.nn是专门为神经网络设计的模块化接口。nn构建于Autograd之上，可以用来定义和运行神经网络。
@@ -105,52 +111,170 @@ class DQN(object):
 
         return loss.data.numpy()  # 返回损失函数数值
 
+    def predict_action(self, s, epsilon=0.0):  # 推理预测函数，用于模型推理
+        """推理预测函数，epsilon=0表示完全贪婪策略"""
+        s = torch.unsqueeze(torch.FloatTensor(s), 0)
+        if np.random.uniform() < epsilon:  # 如果epsilon>0，仍然有探索
+            return np.random.randint(0, N_ACTIONS)
+        else:
+            return torch.max(self.evaluate_net.forward(s), 1)[1].data.numpy()[0]
+
+    def save_model(self, model_name="cartpole_dqn.pth"):
+        """保存模型"""
+        model_path = os.path.join(MODEL_SAVE_DIR, model_name)
+        torch.save({
+            'evaluate_net_state_dict': self.evaluate_net.state_dict(),
+            'target_net_state_dict': self.target_net.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'hyperparameters': {
+                'N_STATES': N_STATES,
+                'N_ACTIONS': N_ACTIONS,
+                'LR': LR,
+                'GAMMA': GAMMA,
+                'EPSILON': EPSILON,
+                'MEMORY_CAPACITY': MEMORY_CAPACITY,
+                'BATCH_SIZE': BATCH_SIZE,
+                'TARGET_REPLACE_ITER': TARGET_REPLACE_ITER
+            }
+        }, model_path)
+        print(f"模型已保存到: {model_path}")
+
+    def load_model(self, model_name="cartpole_dqn.pth"):
+        """加载模型"""
+        model_path = os.path.join(MODEL_SAVE_DIR, model_name)
+        if os.path.exists(model_path):
+            checkpoint = torch.load(model_path)
+            self.evaluate_net.load_state_dict(checkpoint['evaluate_net_state_dict'])
+            self.target_net.load_state_dict(checkpoint['target_net_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            print(f"模型已从 {model_path} 加载")
+            return True
+        else:
+            print(f"模型文件 {model_path} 不存在")
+            return False
+
+def inference_demo(model_name="cartpole_dqn.pth", episodes=5):
+    """推理演示函数"""
+    print("=" * 50)
+    print("开始推理演示...")
+    
+    # 创建新的DQN实例用于推理
+    dqn_inference = DQN()
+    
+    # 加载训练好的模型
+    if not dqn_inference.load_model(model_name):
+        print("无法加载模型，请先训练模型")
+        return
+    
+    # 设置推理模式
+    dqn_inference.evaluate_net.eval()
+    dqn_inference.target_net.eval()
+    
+    total_rewards = []
+    
+    for episode in range(episodes):
+        state = env.reset()
+        episode_reward = 0
+        step = 0
+        
+        print(f"\nEpisode {episode + 1}:")
+        
+        while True:
+            env.render()  # 显示动画
+            
+            # 使用推理模式选择动作（epsilon=0，完全贪婪）
+            action = dqn_inference.predict_action(state, epsilon=0.0)
+            
+            # 执行动作
+            next_state, reward, done, _ = env.step(action)
+            
+            episode_reward += reward
+            step += 1
+            
+            if done:
+                print(f"  步数: {step}, 总奖励: {episode_reward:.2f}")
+                total_rewards.append(episode_reward)
+                break
+                
+            state = next_state
+    
+    env.close()
+    
+    avg_reward = np.mean(total_rewards)
+    print(f"\n推理结果:")
+    print(f"平均奖励: {avg_reward:.2f}")
+    print(f"最高奖励: {max(total_rewards):.2f}")
+    print(f"最低奖励: {min(total_rewards):.2f}")
+
 
 if __name__ == "__main__":
-    dqn = DQN()
+    import sys
+    
+    # 检查命令行参数
+    if len(sys.argv) > 1 and sys.argv[1] == "inference":
+        # 推理模式
+        model_name = sys.argv[2] if len(sys.argv) > 2 else "cartpole_dqn.pth"
+        episodes = int(sys.argv[3]) if len(sys.argv) > 3 else 5
+        inference_demo(model_name, episodes)
+    else:
+        # 训练模式
+        dqn = DQN()
 
-    writer = SummaryWriter("run/MemoryCapacity_100_CustomReward/")
-    writer.add_graph(dqn.evaluate_net, torch.randn(1, N_STATES))
+        writer = SummaryWriter("run/MemoryCapacity_100_CustomReward/")
+        writer.add_graph(dqn.evaluate_net, torch.randn(1, N_STATES))
 
-    global_step = 0  # 绘图横坐标
-    for i in range(EPOCH):  # episode循环
-        s = env.reset()  # 重置环境
-        running_loss = 0  # 损失函数值
-        cumulated_reward = 0  # 初始化该循环对应的episode的总奖励
-        step = 0
+        global_step = 0  # 绘图横坐标
+        for i in range(EPOCH):  # episode循环
+            s = env.reset()  # 重置环境
+            running_loss = 0  # 损失函数值
+            cumulated_reward = 0  # 初始化该循环对应的episode的总奖励
+            step = 0
 
-        while True:
-            global_step += 1
-            env.render()  # 显示实验动画
-            a = dqn.choose_action(s)  # 输入该步对应的状态s，选择动作
-            s_, r, done, _ = env.step(a)  # 执行动作，获得反馈
+            while True:
+                global_step += 1
+                env.render()  # 显示实验动画
+                a = dqn.choose_action(s)  # 输入该步对应的状态s，选择动作
+                s_, r, done, _ = env.step(a)  # 执行动作，获得反馈
 
-            # 修改奖励 (不修改也可以，修改奖励只是为了更快地得到训练好的摆杆)
-            x, x_dot, theta, theta_dot = s_
-            r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.8
-            r2 = (env.theta_threshold_radians - abs(theta)) / env.theta_threshold_radians - 0.5
-            r = r1 + r2
+                # 修改奖励 (不修改也可以，修改奖励只是为了更快地得到训练好的摆杆)
+                x, x_dot, theta, theta_dot = s_
+                r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.8
+                r2 = (env.theta_threshold_radians - abs(theta)) / env.theta_threshold_radians - 0.5
+                r = r1 + r2
 
-            dqn.store_transition(s, a, r, s_)  # 存储样本
+                dqn.store_transition(s, a, r, s_)  # 存储样本
 
-            cumulated_reward += r  # 逐步加上一个episode内每个step的reward
-            if dqn.point > MEMORY_CAPACITY:  # 如果累计的transition数量超过了记忆库的固定容量2000
-                # 开始学习 (抽取记忆，即32个transition，并对评估网络参数进行更新，并在开始学习后每隔100次将评估网络的参数赋给目标网络)
-                loss = dqn.learn()
-                running_loss += loss
-                if done or step > 2000:
-                    print("��FAIL��Episode: %d| Step: %d| Loss:  %.4f, Reward: %.2f" % (
-                        i, step, running_loss / step, cumulated_reward))
-                    writer.add_scalar("training/Loss", running_loss / step, global_step)
-                    writer.add_scalar("training/Reward", cumulated_reward, global_step)
+                cumulated_reward += r  # 逐步加上一个episode内每个step的reward
+                if dqn.point > MEMORY_CAPACITY:  # 如果累计的transition数量超过了记忆库的固定容量2000
+                    # 开始学习 (抽取记忆，即32个transition，并对评估网络参数进行更新，并在开始学习后每隔100次将评估网络的参数赋给目标网络)
+                    loss = dqn.learn()
+                    running_loss += loss
+                    if done or step > 2000:
+                        print("FAILEpisode: %d| Step: %d| Loss:  %.4f, Reward: %.2f" % (
+                            i, step, running_loss / step, cumulated_reward))
+                        writer.add_scalar("training/Loss", running_loss / step, global_step)
+                        writer.add_scalar("training/Reward", cumulated_reward, global_step)
+                        break
+                else:
+                    print("\rCollecting experience: %d / %d..." % (dqn.point, MEMORY_CAPACITY), end='')
+
+                if done:
                     break
-            else:
-                print("\rCollecting experience: %d / %d..." % (dqn.point, MEMORY_CAPACITY), end='')
+                if step % 100 == 99:
+                    print("Episode: %d| Step: %d| Loss:  %.4f, Reward: %.2f" % (
+                        i, step, running_loss / step, cumulated_reward))
+                step += 1
+                s = s_
 
-            if done:
-                break
-            if step % 100 == 99:
-                print("Episode: %d| Step: %d| Loss:  %.4f, Reward: %.2f" % (
-                    i, step, running_loss / step, cumulated_reward))
-            step += 1
-            s = s_
+            # 每50个episode保存一次模型
+            if (i + 1) % 50 == 0:
+                dqn.save_model(f"cartpole_dqn_episode_{i+1}.pth")
+        
+        # 训练完成后保存最终模型
+        dqn.save_model("cartpole_dqn_final.pth")
+        env.close()
+        print("\n训练完成！模型已保存。")
+        print("使用方法:")
+        print("python CartPole.py inference                    # 使用默认模型进行推理")
+        print("python CartPole.py inference model_name.pth     # 使用指定模型进行推理")
+        print("python CartPole.py inference model_name.pth 10  # 使用指定模型进行10次推理")
