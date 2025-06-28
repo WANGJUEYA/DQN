@@ -38,6 +38,7 @@ class MazeEnv(Env):
         super(MazeEnv, self).__init__()
         # 画板
         self.viewer = None
+        self.pygame_initialized = False
         if maze is None:
             maze = MazeEnv.random_maze(maze_size)
         else:
@@ -115,8 +116,19 @@ class MazeEnv(Env):
 
     def render(self, mode='human'):
         rows, cols = self.maze.shape
+        
+        # 初始化pygame
+        if not self.pygame_initialized:
+            pygame.init()
+            self.pygame_initialized = True
+            
         if self.viewer is None:
             self.viewer = pygame.display.set_mode(((cols + 2) * UNIT, (rows + 2) * UNIT))
+            pygame.display.set_caption("Maze Environment")
+        
+        # 清空屏幕
+        self.viewer.fill((255, 255, 255))  # 白色背景
+        
         # 画网格
         for i in range(rows + 2):
             pygame.draw.line(self.viewer, (0, 0, 0), (UNIT, UNIT * i), (cols * UNIT + UNIT, UNIT * i))  # 横线
@@ -124,60 +136,135 @@ class MazeEnv(Env):
             pygame.draw.line(self.viewer, (0, 0, 0), (UNIT * j, UNIT), (UNIT * j, rows * UNIT + UNIT))  # 竖线
 
         # 出口，用红色表示出口
-        pygame.draw.polygon(self.viewer, (255, 0, 0), [(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], 0)
+        exit_x, exit_y = self.render_point_convert(rows - 1, cols - 1)
+        pygame.draw.rect(self.viewer, (255, 0, 0), (exit_x, exit_y, UNIT, UNIT))
+        
         # 用黑色表示墙
         for i in range(rows):
             for j in range(cols):
                 if self.maze[i][j] == 1:
-                    pygame.draw.polygon(self.viewer, (0, 0, 0), [(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], 0)
+                    wall_x, wall_y = self.render_point_convert(i, j)
+                    pygame.draw.rect(self.viewer, (0, 0, 0), (wall_x, wall_y, UNIT, UNIT))
+        
         # 用黄色表示走过的路径
         self.render_visited_with_dashed_line()
+        
         # 老鼠，用黄色圆圈
         rat_row, rat_col = self.rat
-        rat_row_point, rat_col_point = self.render_point_convert(rat_row, rat_col)
-        pygame.draw.circle(self.viewer, (255, 255, 0), (rat_row_point + (UNIT / 2), rat_col_point + (UNIT / 2)), int(UNIT / 2 - 5))
+        rat_x, rat_y = self.render_point_convert(rat_row, rat_col)
+        pygame.draw.circle(self.viewer, (255, 255, 0), (rat_x + UNIT // 2, rat_y + UNIT // 2), UNIT // 2 - 5)
 
         pygame.display.flip()
 
     def render_point_convert(self, i, j):
+        """将迷宫坐标转换为屏幕坐标"""
         rows, cols = self.maze.shape
-        return (j + 1) * UNIT, (rows - i) * UNIT
+        # 修正坐标转换：i是行（从上到下），j是列（从左到右）
+        screen_x = (j + 1) * UNIT
+        screen_y = (i + 1) * UNIT
+        return screen_x, screen_y
 
     def render_visited_with_dashed_line(self):
+        if self.viewer is None or not self.visited:
+            return
+            
+        # 绘制访问过的路径，用虚线连接单元格中心
+        if len(self.visited) > 0:
+            # 从起点开始
+            start_pos = (0, 0)
+            
+            for item in self.visited:
+                i, j, action = item
+                end_pos = (i, j)
+                
+                # 获取起点和终点的屏幕坐标（中心点）
+                start_x, start_y = self.render_point_convert(start_pos[0], start_pos[1])
+                start_x += UNIT // 2
+                start_y += UNIT // 2
+                
+                end_x, end_y = self.render_point_convert(end_pos[0], end_pos[1])
+                end_x += UNIT // 2
+                end_y += UNIT // 2
+                
+                # 绘制从起点到终点的虚线（细灰色）
+                self.draw_dashed_line(start_x, start_y, end_x, end_y, color=(128, 128, 128), line_width=1)
+                
+                # 更新起点为当前终点
+                start_pos = end_pos
+            
+            # 绘制当前老鼠位置到上一个位置的连线（细黑色实线）
+            if len(self.visited) > 0:
+                last_item = self.visited[-1]
+                last_i, last_j, _ = last_item
+                
+                # 获取上一个位置和当前位置的中心点
+                last_x, last_y = self.render_point_convert(last_i, last_j)
+                last_x += UNIT // 2
+                last_y += UNIT // 2
+                
+                current_x, current_y = self.render_point_convert(self.rat[0], self.rat[1])
+                current_x += UNIT // 2
+                current_y += UNIT // 2
+                
+                # 绘制当前移动的连线（细黑色实线）
+                pygame.draw.line(self.viewer, (0, 0, 0), 
+                               (int(last_x), int(last_y)), 
+                               (int(current_x), int(current_y)), 1)
+
+    def draw_dashed_line(self, start_x, start_y, end_x, end_y, dash_length=8, gap_length=4, color=(0, 0, 0), line_width=1):
+        """绘制虚线"""
         if self.viewer is None:
             return
-        bi, bj = self.render_point_convert(0, 0)
-        bi, bj = bi + UNIT / 2, bj + UNIT / 2
-
-        def draw_dashed_line(begin, action_step):
-            li, lj = begin
-            x, y = action_step
-            for step in range(int(UNIT / 4)):
-                ni, nj = li + 2 * y, lj - 2 * x
-                if step % 2 == 0:
-                    pygame.draw.line(self.viewer, (0, 0, 0), (li, lj), (ni, nj))
-                li, lj = ni, nj
-            return li, lj
-
-        last = None
-        exist = set()
-        for item in self.visited:
-            i, j, action = item
-            find = (i, j) in exist
-            # 没有走过才用黄色覆盖
-            if find is not True:
-                pygame.draw.polygon(self.viewer, (255, 255, 0), [(0, 0), (0, UNIT - 1), (UNIT - 1, UNIT - 1), (UNIT - 1, 0)], 0)
-            exist.add((i, j))
-
-            if last is not None:
-                bi, bj = draw_dashed_line((bi, bj), last)
-            last = ACTIONS_STEP[action]
-            bi, bj = draw_dashed_line((bi, bj), last)
+            
+        # 计算线段长度和方向
+        dx = end_x - start_x
+        dy = end_y - start_y
+        distance = (dx**2 + dy**2)**0.5
+        
+        if distance == 0:
+            return
+            
+        # 单位向量
+        unit_x = dx / distance
+        unit_y = dy / distance
+        
+        # 绘制虚线
+        current_x, current_y = start_x, start_y
+        remaining_distance = distance
+        
+        while remaining_distance > 0:
+            # 计算当前段的长度
+            segment_length = min(dash_length, remaining_distance)
+            
+            # 计算段终点
+            segment_end_x = current_x + unit_x * segment_length
+            segment_end_y = current_y + unit_y * segment_length
+            
+            # 绘制线段
+            pygame.draw.line(self.viewer, color, 
+                           (int(current_x), int(current_y)), 
+                           (int(segment_end_x), int(segment_end_y)), line_width)
+            
+            # 移动到段终点
+            current_x = segment_end_x
+            current_y = segment_end_y
+            remaining_distance -= segment_length
+            
+            # 跳过间隙
+            if remaining_distance > gap_length:
+                current_x += unit_x * gap_length
+                current_y += unit_y * gap_length
+                remaining_distance -= gap_length
+            else:
+                break
 
     def close(self):
         if self.viewer:
-            pygame.quit()
+            pygame.display.quit()
             self.viewer = None
+        if self.pygame_initialized:
+            pygame.quit()
+            self.pygame_initialized = False
 
     # 生成一个指定长度的迷宫数组
     @staticmethod
@@ -197,7 +284,7 @@ class MazeEnv(Env):
         maze = create_maze()
         while MazeEnv.check_maze(maze) is False:
             maze = create_maze()
-        logger.info("maze: %s", maze)
+        logger.deprecation("maze: %s", maze)
         return maze
 
     # 检查迷宫是否有通路
@@ -226,57 +313,3 @@ class MazeEnv(Env):
         # 从左上角开始进行DFS
         dfs(0, 0)
         return visited[row - 1][col - 1]
-
-
-if __name__ == "__main__":
-    # env = MazeEnv(DEFAULT_MAZE)
-    # env = MazeEnv(None, (2, 6))
-    env = MazeEnv()
-
-    # env.step(DOWN)
-    # env.step(RIGHT)
-    # env.step(RIGHT)
-    # env.step(RIGHT)
-    # env.step(DOWN)
-    action = None
-    close = False
-
-
-    def on_key():
-        global close
-        global action
-        global input_thread
-        while close is not True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    close = True
-                    break
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_q:
-                        close = True
-                        break
-                    elif event.key == pygame.K_w:
-                        action = UP
-                    elif event.key == pygame.K_s:
-                        action = DOWN
-                    elif event.key == pygame.K_a:
-                        action = LEFT
-                    elif event.key == pygame.K_d:
-                        action = RIGHT
-                    else:
-                        action = None
-
-
-    input_thread = threading.Thread(target=on_key)
-    input_thread.start()
-
-    while close is not True:
-        if action is not None:
-            _, _, done, _ = env.step(action)
-            if done is True:
-                close = True
-                break
-            action = None
-        env.render()
-
-    env.close()

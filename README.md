@@ -110,8 +110,8 @@ DQN/
 │       └── target.jpg        # 目标图片
 │
 ├── models/                    # 全局模型存储目录（只保留最优模型）
-│   ├── CartPole_dqn_best.pth # CartPole全局最优模型
-│   └── Maze_dqn_best.pth     # Maze全局最优模型
+│   ├── CartPole_dqn_best.pt # CartPole全局最优模型
+│   └── Maze_dqn_best.pt     # Maze全局最优模型
 │
 ├── outputs/                   # 输出文件目录（运行时生成）
 │   ├── Maze/                 # 迷宫游戏输出

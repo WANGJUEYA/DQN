@@ -64,7 +64,7 @@ class BaseAgent(ABC):
     def _get_training_number(self) -> int:
         max_training_number = 0
         if self.model_dir.exists():
-            pattern = f"{self.game_name}_dqn_training_*_*.pth"
+            pattern = f"{self.game_name}_dqn_training_*_*.pt"
             training_models = list(self.model_dir.glob(pattern))
             for model_file in training_models:
                 parts = model_file.stem.split('_')
@@ -142,7 +142,7 @@ class BaseAgent(ABC):
                     best_reward = total_reward
                     best_episode = episode + 1
                     # 保存最优模型到models目录
-                    best_model_name = f"{self.game_name}_dqn_training_{training_number}_best.pth"
+                    best_model_name = f"{self.game_name}_dqn_training_{training_number}_best.pt"
                     best_model_path = self.model_dir / best_model_name
                     self.agent.save_model(str(best_model_path))
                     checkpoint = torch.load(best_model_path, map_location='cpu', weights_only=False)
@@ -154,13 +154,12 @@ class BaseAgent(ABC):
                 if (episode + 1) % save_interval == 0:
                     self._save_checkpoint(episode, training_number)
                     self._generate_reports(episode)
-            # 不再保存final模型到models目录
-            # final_model_name = f"{self.game_name}_dqn_training_{training_number}_final.pth"
-            # final_model_path = self.model_dir / final_model_name
-            # self.agent.save_model(str(final_model_path))
+            final_model_name = f"{self.game_name}_dqn_training_{training_number}_final.pt"
+            final_model_path = self.model_dir / final_model_name
+            self.agent.save_model(str(final_model_path))
             # 更新全局最优模型
             if best_model_path is not None:  # 确保有最优模型存在
-                global_best_model_path = self.model_dir / f"{self.game_name}_dqn_best.pth"
+                global_best_model_path = self.model_dir / f"{self.game_name}_dqn_best.pt"
                 current_global_best_reward = self._get_global_best_reward()
                 if best_reward > current_global_best_reward:
                     import shutil
@@ -180,11 +179,11 @@ class BaseAgent(ABC):
             print(f"输出目录: {self.game_output_dir}")
 
     def _cleanup_models(self):
-        """只保留所有训练的*_best.pth和全局最优，删除其他模型文件"""
-        keep_names = [f"{self.game_name}_dqn_best.pth"]
+        """只保留所有训练的*_best.pt和全局最优，删除其他模型文件"""
+        keep_names = [f"{self.game_name}_dqn_best.pt"]
         # 保留所有训练的best模型
-        keep_names += [f.name for f in self.model_dir.glob(f"{self.game_name}_dqn_training_*_best.pth")]
-        for f in self.model_dir.glob(f"{self.game_name}_dqn_*.pth"):
+        keep_names += [f.name for f in self.model_dir.glob(f"{self.game_name}_dqn_training_*_best.pt")]
+        for f in self.model_dir.glob(f"{self.game_name}_dqn_*.pt"):
             if f.name not in keep_names:
                 try:
                     f.unlink()
@@ -193,7 +192,7 @@ class BaseAgent(ABC):
                     print(f"无法删除多余模型文件: {f}，原因: {e}")
 
     def _get_global_best_reward(self) -> float:
-        global_best_model_path = self.model_dir / f"{self.game_name}_dqn_best.pth"
+        global_best_model_path = self.model_dir / f"{self.game_name}_dqn_best.pt"
         if global_best_model_path.exists():
             try:
                 checkpoint = torch.load(global_best_model_path, map_location='cpu', weights_only=False)
@@ -211,7 +210,7 @@ class BaseAgent(ABC):
         self.convergence_analyzer.save_analysis_data(str(convergence_file))
         
         # 保存模型检查点到outputs目录（不在models目录）
-        checkpoint_model_name = f"{self.game_name}_dqn_training_{training_number}_checkpoint_{episode}.pth"
+        checkpoint_model_name = f"{self.game_name}_dqn_training_{training_number}_checkpoint_{episode}.pt"
         checkpoint_model_path = self.game_output_dir / "process_models" / checkpoint_model_name
         checkpoint_model_path.parent.mkdir(exist_ok=True)
         self.agent.save_model(str(checkpoint_model_path))
@@ -342,7 +341,7 @@ class BaseAgent(ABC):
             print("❌ 模型目录不存在")
             return
         
-        models = list(self.model_dir.glob("*.pth"))
+        models = list(self.model_dir.glob("*.pt"))
         if not models:
             print("❌ 未找到模型文件")
             return
@@ -411,12 +410,12 @@ class BaseAgent(ABC):
     def _get_best_model(self) -> Optional[str]:
         """获取最优模型文件名"""
         # 首先尝试全局最优模型
-        best_model_path = self.model_dir / f"{self.game_name}_dqn_best.pth"
+        best_model_path = self.model_dir / f"{self.game_name}_dqn_best.pt"
         if best_model_path.exists():
             return best_model_path.name
         
         # 然后尝试训练过程中的最优模型
-        pattern = f"{self.game_name}_dqn_training_*_best.pth"
+        pattern = f"{self.game_name}_dqn_training_*_best.pt"
         best_models = list(self.model_dir.glob(pattern))
         if best_models:
             # 按训练编号排序，取最新的
@@ -424,7 +423,7 @@ class BaseAgent(ABC):
             return best_models[-1].name
         
         # 最后尝试最终模型
-        final_model_path = self.model_dir / f"{self.game_name}_dqn_final.pth"
+        final_model_path = self.model_dir / f"{self.game_name}_dqn_final.pt"
         if final_model_path.exists():
             return final_model_path.name
         
