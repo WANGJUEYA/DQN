@@ -85,7 +85,7 @@ class MazeEnv(Env):
         done = numpy.array_equal(self.rat, self.cheese)
         if done:
             # 如果成功了，返回最大收益
-            reward = 1.0
+            reward = 100.0
         else:
             if move:
                 self.steps_beyond_done += 1
