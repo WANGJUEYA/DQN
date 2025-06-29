@@ -45,7 +45,7 @@ class CartPoleAgent(BaseAgent):
     def _init_env_and_agent(self):
         self.env = gym.make('CartPole-v1', render_mode='human')
         self.agent = self
-        self._max_steps = 500
+        self._max_steps = MEMORY_CAPACITY
         self._game_name = "CartPole"
         self.target_net, self.evaluate_net = Net(), Net()
         self.memory = np.zeros((MEMORY_CAPACITY, N_STATES * 2 + 2))

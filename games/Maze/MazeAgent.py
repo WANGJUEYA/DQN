@@ -47,7 +47,7 @@ class MazeAgent(BaseAgent):
         self.env = MazeEnv(DEFAULT_MAZE)
         self.agent = self  # 兼容基类接口
         rows, cols = self.env.maze.shape
-        self._max_steps = rows * cols * 10
+        self._max_steps = rows * cols * 50
         self._game_name = "Maze"
         self.target_net, self.evaluate_net = Net(), Net()
         self.memory = np.zeros((MEMORY_CAPACITY, N_STATES * 2 + 2))
