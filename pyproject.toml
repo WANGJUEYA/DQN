@@ -33,6 +33,7 @@ dependencies = [
     "pandas>=2.0.0",
     "seaborn>=0.12.0",
     "pygame>=2.6.1",
+    "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]

@@ -9,6 +9,7 @@
 - [项目结构](#项目结构)
 - [使用方法](#使用方法)
 - [功能特性](#功能特性)
+- [训练优化](#训练优化)
 - [参数说明](#参数说明)
 - [常见问题](#常见问题)
 
@@ -22,6 +23,7 @@
 - **可视化工具**: 生成训练过程折线图和统计报告
 - **模型管理**: 自动保存和加载训练模型，只保留最优模型
 - **推理测试**: 支持模型推理和性能评估
+- **训练优化**: 解决长时间训练不响应问题，提高训练稳定性
 
 ## 🚀 快速开始
 
@@ -56,7 +58,7 @@ uv --version
 git clone <your-repo-url>
 cd DQN
 
-# 2. 创建虚拟环境并安装依赖
+# 2. 创建虚拟环境并安装依赖（使用uv）
 uv sync
 
 # 3. 激活虚拟环境
@@ -65,6 +67,8 @@ uv shell
 # 4. 验证安装
 python -c "import torch; print(torch.__version__)"
 ```
+
+**注意**: 本项目使用uv进行依赖管理，不再使用requirements.txt文件。所有依赖都在pyproject.toml中定义。
 
 ### 快速体验
 
@@ -84,24 +88,27 @@ uv run python main.py --game cartpole --mode list-models
 ```
 DQN/
 ├── main.py                    # 主程序入口，支持命令行参数
-├── pyproject.toml             # 项目配置和依赖定义
-├── requirements.txt           # pip依赖文件（备用）
+├── pyproject.toml             # 项目配置和依赖定义（uv管理）
 ├── uv.lock                    # 依赖锁定文件
 ├── README.md                  # 项目说明文档
 ├── .gitignore                 # Git忽略文件配置
 │
 ├── framework/                 # 框架工具目录
 │   ├── __init__.py           # 框架包初始化
-│   ├── BaseAgent.py          # 基础智能体类
+│   ├── BaseAgent.py          # 基础智能体类（已优化训练稳定性）
 │   ├── convergence_analysis.py    # 收敛分析工具
-│   └── plot_convergence.py        # 图表生成工具
+│   ├── plot_convergence.py        # 图表生成工具
+│   └── training_monitor.py        # 训练监控工具
 │
 ├── games/                     # 游戏模块目录
 │   ├── Maze/                  # 迷宫游戏模块
 │   │   ├── MazeEnv.py        # 迷宫环境定义
 │   │   └── MazeAgent.py      # 迷宫DQN智能体
 │   └── CartPole/             # CartPole游戏模块
-│       └── CartPoleAgent.py  # CartPole DQN智能体
+│       └── CartPoleAgent.py  # CartPole DQN智能体（已优化环境初始化）
+│
+├── test/                      # 测试目录
+│   └── maze_key_pressed.py   # 迷宫键盘控制测试
 │
 ├── docs/                      # 文档目录
 │   └── _img/                 # 项目图片资源
@@ -117,7 +124,7 @@ DQN/
 │   ├── Maze/                 # 迷宫游戏输出
 │   │   ├── 1/               # 第1次训练输出
 │   │   │   ├── convergence_analysis/  # 收敛分析数据
-│   │   │   ├── reports/     # 报告文件
+│   │   │   ├── reports/     # 报告文件（包含图表）
 │   │   │   └── process_models/   # 过程模型文件
 │   │   └── ...              # 更多训练输出
 │   └── CartPole/            # CartPole输出
@@ -132,8 +139,14 @@ DQN/
 
 #### 训练
 ```bash
-uv run python main.py --game cartpole --mode train --episodes 200
-uv run python main.py --game maze --mode train --episodes 100
+# 长时间训练（推荐无渲染模式）
+uv run python main.py --game cartpole --mode train --episodes 2000
+
+# 短时间训练（可带渲染）
+uv run python main.py --game cartpole --mode train --episodes 100 --render
+
+# Maze训练
+uv run python main.py --game maze --mode train --episodes 500
 ```
 
 #### 推理
@@ -170,6 +183,18 @@ uv run python main.py --game cartpole --mode list-outputs
 - **性能评估**: 详细的推理统计和成功率分析
 - **可视化**: 推理过程可视化展示
 
+### 5. 训练优化
+- **稳定性改进**: 解决长时间训练不响应问题
+- **异常处理**: 自动处理渲染错误和环境初始化失败
+- **内存管理**: 定期内存清理，防止内存泄漏
+- **优雅退出**: 支持Ctrl+C优雅退出训练
+
+### 6. 训练监控
+- **资源监控**: 实时监控CPU、内存、GPU使用情况
+- **性能分析**: 自动生成训练性能报告
+- **异常检测**: 检测训练过程中的异常情况
+- **监控报告**: 生成详细的训练监控报告
+
 ## 📋 参数说明
 
 ### 主程序参数
@@ -183,7 +208,7 @@ uv run python main.py --game cartpole --mode list-outputs
 | `--output-dir` | str | `outputs` | 输出文件目录 |
 | `--model-dir` | str | `models` | 模型文件目录 |
 | `--save-interval` | int | 50 | 模型保存间隔（episode数） |
-| `--render` | bool | True | 训练时显示可视化动画窗口 |
+| `--render` | bool | True | 训练时显示可视化动画窗口（长时间训练建议不添加此参数） |
 
 ### 游戏环境
 
@@ -207,7 +232,10 @@ uv run python main.py --game cartpole --mode list-outputs
 A: 使用 `uv shell` 命令激活虚拟环境，或使用 `uv run python` 直接在虚拟环境中运行脚本。
 
 **Q: 安装依赖失败怎么办？**
-A: 确保已正确安装uv，然后运行 `uv sync` 重新安装依赖。
+A: 确保已正确安装uv，然后运行 `uv sync` 重新安装依赖。如果仍有问题，可以尝试 `uv sync --reinstall`。
+
+**Q: 为什么没有requirements.txt文件？**
+A: 本项目使用uv进行依赖管理，所有依赖都在pyproject.toml中定义。这是更现代的Python项目依赖管理方式。
 
 ### 训练问题
 
@@ -216,6 +244,9 @@ A: 可以尝试调整学习率、增加训练轮次、调整网络结构等。�
 
 **Q: 如何判断模型是否训练完成？**
 A: 查看收敛分析报告，当奖励趋于稳定且趋势平缓时，模型通常已经收敛。
+
+**Q: 长时间训练后gym不响应怎么办？**
+A: 不使用 `--render` 参数，程序已优化处理长时间训练问题，支持优雅退出。
 
 ### 推理问题
 

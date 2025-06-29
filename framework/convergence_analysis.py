@@ -175,98 +175,112 @@ class ConvergenceAnalyzer:
         
         return bool(is_stable and is_flat_trend)  # 确保返回Python原生布尔类型
     
-    def plot_convergence_analysis(self, save_path=None, show_plot=True):
+    def plot_convergence_analysis(self, save_path=None, show_plot=True, total_seconds=None):
         """绘制收敛分析图表"""
         if not MATPLOTLIB_AVAILABLE:
             print("matplotlib未安装，无法生成图表")
             return
+        
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
             
-        if not self.episode_rewards:
-            print("没有数据可供分析")
-            return
-        
-        # 计算收敛指标
-        metrics = self.calculate_convergence_metrics()
-        
-        # 创建子图
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        fig.suptitle('DQN训练过程收敛分析', fontsize=16, fontweight='bold')
-        
-        episodes = range(1, len(self.episode_rewards) + 1)
-        
-        # 1. 奖励曲线
-        ax1 = axes[0, 0]
-        ax1.plot(episodes, self.episode_rewards, alpha=0.6, label='原始奖励', color='lightblue')
-        
-        # 移动平均
-        if len(self.episode_rewards) >= self.window_size:
-            moving_avg = self.calculate_moving_average(self.episode_rewards)
-            ax1.plot(episodes, moving_avg, label=f'移动平均({self.window_size})', linewidth=2, color='blue')
-        
-        # 指数平滑
-        smoothed = self.calculate_exponential_smoothing(self.episode_rewards)
-        ax1.plot(episodes, smoothed, label='指数平滑', linewidth=2, color='red')
-        
-        ax1.set_title('Episode奖励变化')
-        ax1.set_xlabel('Episode')
-        ax1.set_ylabel('奖励')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-        
-        # 2. 损失曲线（如果有数据）
-        ax2 = axes[0, 1]
-        if self.episode_losses:
-            ax2.plot(episodes, self.episode_losses, alpha=0.6, label='原始损失', color='lightcoral')
-            smoothed_loss = self.calculate_exponential_smoothing(self.episode_losses)
-            ax2.plot(episodes, smoothed_loss, label='指数平滑', linewidth=2, color='red')
-            ax2.set_title('Episode损失变化')
-            ax2.set_xlabel('Episode')
-            ax2.set_ylabel('损失')
-            ax2.legend()
-            ax2.grid(True, alpha=0.3)
-        else:
-            ax2.text(0.5, 0.5, '无损失数据', ha='center', va='center', transform=ax2.transAxes)
-            ax2.set_title('Episode损失变化')
-        
-        # 3. 成功率曲线（如果有数据）
-        ax3 = axes[1, 0]
-        if self.episode_successes:
-            # 计算移动成功率
-            success_rates = []
-            for i in range(len(self.episode_successes)):
-                start_idx = max(0, i - self.window_size + 1)
-                window_successes = self.episode_successes[start_idx:i+1]
-                success_rates.append(np.mean(window_successes))
+            metrics = self.calculate_convergence_metrics()
+            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+            fig.suptitle('DQN训练过程收敛分析', fontsize=16, fontweight='bold')
+            has_rewards = len(self.episode_rewards) > 0
+            has_losses = len(self.episode_losses) > 0
+            has_successes = len(self.episode_successes) > 0
+            if has_rewards:
+                episodes = range(1, len(self.episode_rewards) + 1)
+            else:
+                episodes = []
+            # 1. 奖励曲线
+            ax1 = axes[0, 0]
+            if has_rewards:
+                ax1.plot(episodes, self.episode_rewards, alpha=0.6, label='原始奖励', color='lightblue')
+                if len(self.episode_rewards) >= self.window_size:
+                    moving_avg = self.calculate_moving_average(self.episode_rewards)
+                    ax1.plot(episodes, moving_avg, label=f'移动平均({self.window_size})', linewidth=2, color='blue')
+                smoothed = self.calculate_exponential_smoothing(self.episode_rewards)
+                ax1.plot(episodes, smoothed, label='指数平滑', linewidth=2, color='red')
+                ax1.set_title('Episode奖励变化')
+                ax1.set_xlabel('Episode')
+                ax1.set_ylabel('奖励')
+                ax1.legend()
+                ax1.grid(True, alpha=0.3)
+            else:
+                ax1.text(0.5, 0.5, '暂无奖励数据', ha='center', va='center', transform=ax1.transAxes, fontsize=14)
+                ax1.set_title('Episode奖励变化')
+                ax1.set_xlabel('Episode')
+                ax1.set_ylabel('奖励')
+            # 2. 损失曲线
+            ax2 = axes[0, 1]
+            if has_losses:
+                ax2.plot(episodes, self.episode_losses, alpha=0.6, label='原始损失', color='lightcoral')
+                smoothed_loss = self.calculate_exponential_smoothing(self.episode_losses)
+                ax2.plot(episodes, smoothed_loss, label='指数平滑', linewidth=2, color='red')
+                ax2.set_title('Episode损失变化')
+                ax2.set_xlabel('Episode')
+                ax2.set_ylabel('损失')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+            else:
+                ax2.text(0.5, 0.5, '暂无损失数据', ha='center', va='center', transform=ax2.transAxes, fontsize=14)
+                ax2.set_title('Episode损失变化')
+                ax2.set_xlabel('Episode')
+                ax2.set_ylabel('损失')
+            # 3. 成功率曲线
+            ax3 = axes[1, 0]
+            if has_successes:
+                success_rates = []
+                for i in range(len(self.episode_successes)):
+                    start_idx = max(0, i - self.window_size + 1)
+                    window_successes = self.episode_successes[start_idx:i+1]
+                    success_rates.append(np.mean(window_successes))
+                ax3.plot(episodes, success_rates, label=f'成功率({self.window_size}窗口)', linewidth=2, color='green')
+                ax3.set_title('Episode成功率变化')
+                ax3.set_xlabel('Episode')
+                ax3.set_ylabel('成功率')
+                ax3.legend()
+                ax3.grid(True, alpha=0.3)
+            else:
+                ax3.text(0.5, 0.5, '暂无成功率数据', ha='center', va='center', transform=ax3.transAxes, fontsize=14)
+                ax3.set_title('Episode成功率变化')
+                ax3.set_xlabel('Episode')
+                ax3.set_ylabel('成功率')
+            # 4. 收敛指标统计
+            ax4 = axes[1, 1]
+            # 始终显示表格，即使没有数据
+            metric_names = ['平均奖励', '奖励标准差', '奖励稳定性', '收敛比率', '奖励趋势', '收敛状态']
             
-            ax3.plot(episodes, success_rates, label=f'成功率({self.window_size}窗口)', linewidth=2, color='green')
-            ax3.set_title('Episode成功率变化')
-            ax3.set_xlabel('Episode')
-            ax3.set_ylabel('成功率')
-            ax3.legend()
-            ax3.grid(True, alpha=0.3)
-        else:
-            ax3.text(0.5, 0.5, '无成功率数据', ha='center', va='center', transform=ax3.transAxes)
-            ax3.set_title('Episode成功率变化')
-        
-        # 4. 收敛指标统计
-        ax4 = axes[1, 1]
-        if metrics:
-            # 创建收敛指标表格
-            metric_names = ['平均奖励', '奖励标准差', '奖励稳定性', '收敛比率', '奖励趋势']
-            metric_values = [
-                f"{metrics.get('reward_mean', 0):.2f}",
-                f"{metrics.get('reward_std', 0):.2f}",
-                f"{metrics.get('reward_stability', 0):.2f}",
-                f"{metrics.get('convergence_ratio', 0):.2f}",
-                f"{metrics.get('reward_trend', 0):.4f}"
-            ]
+            if metrics and has_rewards:
+                metric_values = [
+                    f"{metrics.get('reward_mean', 0):.2f}",
+                    f"{metrics.get('reward_std', 0):.2f}",
+                    f"{metrics.get('reward_stability', 0):.2f}",
+                    f"{metrics.get('convergence_ratio', 0):.2f}",
+                    f"{metrics.get('reward_trend', 0):.4f}",
+                    "已收敛" if metrics.get('is_converged', False) else "未收敛"
+                ]
+            else:
+                metric_values = ["无法分析", "无法分析", "无法分析", "无法分析", "无法分析", "无法分析"]
             
-            # 添加收敛状态
-            convergence_status = "已收敛" if metrics.get('is_converged', False) else "未收敛"
-            metric_names.append('收敛状态')
-            metric_values.append(convergence_status)
+            # 总耗时
+            if total_seconds is not None:
+                if total_seconds < 60:
+                    time_str = f"{total_seconds:.1f}秒"
+                else:
+                    m = int(total_seconds // 60)
+                    s = int(total_seconds % 60)
+                    time_str = f"{m}分{s}秒"
+                metric_names.append('总耗时')
+                metric_values.append(time_str)
+            else:
+                metric_names.append('总耗时')
+                metric_values.append("未知")
             
-            # 创建表格
             table_data = [[name, value] for name, value in zip(metric_names, metric_values)]
             table = ax4.table(cellText=table_data, colLabels=['指标', '值'], 
                             cellLoc='center', loc='center')
@@ -274,10 +288,18 @@ class ConvergenceAnalyzer:
             table.set_fontsize(10)
             table.scale(1, 2)
             
-            # 设置表格样式
             for i in range(len(metric_names)):
-                if i == len(metric_names) - 1:  # 最后一行（收敛状态）
-                    color = 'lightgreen' if convergence_status == "已收敛" else 'lightcoral'
+                if metric_names[i] == '收敛状态':
+                    if metric_values[i] == "已收敛":
+                        color = 'lightgreen'
+                    elif metric_values[i] == "未收敛":
+                        color = 'lightcoral'
+                    else:
+                        color = 'lightgray'
+                elif metric_names[i] == '总耗时':
+                    color = 'khaki'
+                elif metric_values[i] == "无法分析" or metric_values[i] == "未知":
+                    color = 'lightgray'
                 else:
                     color = 'lightblue'
                 table[(i+1, 0)].set_facecolor(color)
@@ -285,66 +307,72 @@ class ConvergenceAnalyzer:
             
             ax4.set_title('收敛指标统计')
             ax4.axis('off')
-        else:
-            ax4.text(0.5, 0.5, '无收敛指标数据', ha='center', va='center', transform=ax4.transAxes)
-            ax4.set_title('收敛指标统计')
-        
-        plt.tight_layout()
-        
-        # 保存图表
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"图表已保存到: {save_path}")
-        
-        # 显示图表
-        if show_plot:
-            plt.show()
-        
-        plt.close()
+            plt.tight_layout()
+            if save_path:
+                plt.savefig(save_path, dpi=300, bbox_inches='tight')
+                print(f"图表已保存到: {save_path}")
+            if show_plot:
+                plt.show()
+            plt.close()
+        except Exception as e:
+            print(f"生成图表时出错: {e}")
+            import traceback
+            traceback.print_exc()
     
     def plot_reward_distribution(self, save_path=None, show_plot=True):
         """绘制奖励分布图"""
         if not MATPLOTLIB_AVAILABLE:
             print("matplotlib未安装，无法生成图表")
             return
-            
-        if not self.episode_rewards:
-            print("没有奖励数据可供分析")
-            return
         
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
         fig.suptitle('奖励分布分析', fontsize=16, fontweight='bold')
         
-        rewards = np.array(self.episode_rewards)
-        
-        # 1. 直方图
-        ax1.hist(rewards, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
-        ax1.axvline(np.mean(rewards), color='red', linestyle='--', label=f'平均值: {np.mean(rewards):.2f}')
-        ax1.axvline(np.median(rewards), color='green', linestyle='--', label=f'中位数: {np.median(rewards):.2f}')
-        ax1.set_title('奖励分布直方图')
-        ax1.set_xlabel('奖励值')
-        ax1.set_ylabel('频次')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-        
-        # 2. 箱线图
-        ax2.boxplot(rewards, patch_artist=True, boxprops=dict(facecolor='lightblue'))
-        ax2.set_title('奖励箱线图')
-        ax2.set_ylabel('奖励值')
-        ax2.grid(True, alpha=0.3)
-        
-        # 添加统计信息
-        stats_text = f"""
-        统计信息:
-        样本数: {len(rewards)}
-        平均值: {np.mean(rewards):.2f}
-        标准差: {np.std(rewards):.2f}
-        最小值: {np.min(rewards):.2f}
-        最大值: {np.max(rewards):.2f}
-        中位数: {np.median(rewards):.2f}
-        """
-        ax2.text(0.02, 0.98, stats_text, transform=ax2.transAxes, 
-                verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+        if self.episode_rewards:
+            rewards = np.array(self.episode_rewards)
+            
+            # 1. 直方图
+            ax1.hist(rewards, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
+            ax1.axvline(np.mean(rewards), color='red', linestyle='--', label=f'平均值: {np.mean(rewards):.2f}')
+            ax1.axvline(np.median(rewards), color='green', linestyle='--', label=f'中位数: {np.median(rewards):.2f}')
+            ax1.set_title('奖励分布直方图')
+            ax1.set_xlabel('奖励值')
+            ax1.set_ylabel('频次')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # 2. 箱线图
+            ax2.boxplot(rewards, patch_artist=True, boxprops=dict(facecolor='lightblue'))
+            ax2.set_title('奖励箱线图')
+            ax2.set_ylabel('奖励值')
+            ax2.grid(True, alpha=0.3)
+            
+            # 添加统计信息
+            stats_text = f"""
+            统计信息:
+            样本数: {len(rewards)}
+            平均值: {np.mean(rewards):.2f}
+            标准差: {np.std(rewards):.2f}
+            最小值: {np.min(rewards):.2f}
+            最大值: {np.max(rewards):.2f}
+            中位数: {np.median(rewards):.2f}
+            """
+            ax2.text(0.02, 0.98, stats_text, transform=ax2.transAxes, 
+                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+        else:
+            # 没有数据时显示提示信息
+            ax1.text(0.5, 0.5, '暂无奖励数据\n无法生成分布图', ha='center', va='center', 
+                    transform=ax1.transAxes, fontsize=14, 
+                    bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+            ax1.set_title('奖励分布直方图')
+            ax1.set_xlabel('奖励值')
+            ax1.set_ylabel('频次')
+            
+            ax2.text(0.5, 0.5, '暂无奖励数据\n无法生成箱线图', ha='center', va='center', 
+                    transform=ax2.transAxes, fontsize=14,
+                    bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+            ax2.set_title('奖励箱线图')
+            ax2.set_ylabel('奖励值')
         
         plt.tight_layout()
         
@@ -412,7 +440,7 @@ class ConvergenceAnalyzer:
         
         print(f"分析数据已从 {filepath} 加载")
     
-    def generate_convergence_report(self, save_path=None):
+    def generate_convergence_report(self, save_path=None, total_seconds=None):
         """生成收敛分析报告"""
         if not self.episode_rewards:
             return "没有数据可供分析"
@@ -431,6 +459,17 @@ class ConvergenceAnalyzer:
         report.append(f"总Episode数: {len(self.episode_rewards)}")
         report.append(f"滑动窗口大小: {self.window_size}")
         report.append(f"平滑因子: {self.smoothing_factor}")
+        # 添加训练时间信息
+        if total_seconds is not None:
+            if total_seconds < 60:
+                time_str = f"{total_seconds:.1f}秒"
+            else:
+                m = int(total_seconds // 60)
+                s = int(total_seconds % 60)
+                time_str = f"{m}分{s}秒"
+            report.append(f"训练耗时: {time_str}")
+        else:
+            report.append("训练耗时: 未知")
         report.append("")
         
         # 奖励统计

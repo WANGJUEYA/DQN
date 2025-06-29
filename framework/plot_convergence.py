@@ -10,6 +10,7 @@ import os
 import math
 import datetime
 from typing import List, Dict, Optional
+import numpy as np
 
 # 尝试导入matplotlib
 try:
@@ -321,7 +322,7 @@ def create_graphical_plots(data: Dict, save_dir: str, show_plots: bool = True):
     successes = data.get('episode_successes', [])
     epsilons = data.get('episode_epsilons', [])
     
-    episodes = list(range(1, len(rewards) + 1))
+    episodes = list(range(1, len(rewards) + 1)) if rewards else []
     training_info = get_training_info(data)
     
     # 创建保存目录
@@ -330,18 +331,26 @@ def create_graphical_plots(data: Dict, save_dir: str, show_plots: bool = True):
     # 1. 奖励折线图
     if rewards:
         create_reward_graphical_plot(episodes, rewards, save_dir, show_plots, training_info)
+    else:
+        create_empty_reward_plot(save_dir, show_plots, training_info)
     
     # 2. 损失折线图
     if losses:
         create_loss_graphical_plot(episodes, losses, save_dir, show_plots, training_info)
+    else:
+        create_empty_loss_plot(save_dir, show_plots, training_info)
     
     # 3. 成功率折线图
     if successes:
         create_success_graphical_plot(episodes, successes, save_dir, show_plots, training_info)
+    else:
+        create_empty_success_plot(save_dir, show_plots, training_info)
     
     # 4. Epsilon折线图
     if epsilons:
         create_epsilon_graphical_plot(episodes, epsilons, save_dir, show_plots, training_info)
+    else:
+        create_empty_epsilon_plot(save_dir, show_plots, training_info)
     
     # 5. 综合折线图
     create_comprehensive_graphical_plot(episodes, rewards, losses, successes, epsilons, save_dir, show_plots, training_info)
@@ -454,37 +463,50 @@ def create_success_graphical_plot(episodes: List[int], successes: List[float], s
     if not MATPLOTLIB_AVAILABLE:
         print("matplotlib未安装，跳过成功率图形化图表生成")
         return
-    if not successes:
-        print("没有成功率数据可供绘制")
-        return
     
     plt.figure(figsize=(10, 5))
-    plt.plot(episodes, successes, label="成功(1)/失败(0)", color="orange", alpha=0.5)
     
-    # 计算滑动窗口成功率
-    window_size = min(20, len(successes))
-    success_rates = []
-    window_episodes = []
-    for i in range(0, len(successes), window_size):
-        window_successes = successes[i:i+window_size]
-        if len(window_successes) > 0:
-            success_rates.append(sum(window_successes) / len(window_successes))
-            window_episodes.append(episodes[i+window_size//2] if i+window_size//2 < len(episodes) else episodes[-1])
-    if success_rates:
-        plt.plot(window_episodes, success_rates, label=f"滑动窗口({window_size})成功率", color="red", linewidth=2)
+    if successes and episodes:
+        plt.plot(episodes, successes, label="成功(1)/失败(0)", color="orange", alpha=0.5)
+        
+        # 计算滑动窗口成功率
+        window_size = min(20, len(successes))
+        success_rates = []
+        window_episodes = []
+        for i in range(0, len(successes), window_size):
+            window_successes = successes[i:i+window_size]
+            if len(window_successes) > 0:
+                success_rates.append(sum(window_successes) / len(window_successes))
+                window_episodes.append(episodes[i+window_size//2] if i+window_size//2 < len(episodes) else episodes[-1])
+        if success_rates:
+            plt.plot(window_episodes, success_rates, label=f"滑动窗口({window_size})成功率", color="red", linewidth=2)
+        
+        plt.xlabel("Episode")
+        plt.ylabel("成功率")
+        plt.title("DQN训练过程 - 成功率变化")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+    else:
+        plt.text(0.5, 0.5, '暂无成功率数据\n无法生成成功率变化图', ha='center', va='center', 
+                transform=plt.gca().transAxes, fontsize=16,
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        plt.xlabel("Episode")
+        plt.ylabel("成功率")
+        plt.title("DQN训练过程 - 成功率变化")
     
-    plt.xlabel("Episode")
-    plt.ylabel("成功率")
-    plt.title("DQN训练过程 - 成功率变化")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
+    # 添加训练信息
+    add_training_info_to_plot(training_info)
+    
+    plt.tight_layout()
     
     save_path = os.path.join(save_dir, 'success_rates_plot.png')
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     print(f"成功率折线图(图形)已保存到: {save_path}")
+    
     if show_plots:
         plt.show()
-    plt.close()
+    else:
+        plt.close()
 
 def create_epsilon_graphical_plot(episodes: List[int], epsilons: List[float], save_dir: str, show_plots: bool, training_info: Dict):
     """创建Epsilon图形化折线图"""
@@ -534,32 +556,47 @@ def create_comprehensive_graphical_plot(episodes: List[int], rewards: List[float
     
     # 1. 奖励图
     ax1 = axes[0, 0]
-    ax1.plot(episodes, rewards, alpha=0.6, color='lightblue', linewidth=1)
-    if len(rewards) >= 10:
-        window_size = min(20, len(rewards) // 5)
-        moving_avg = calculate_moving_average(rewards, window_size)
-        ax1.plot(episodes, moving_avg, color='blue', linewidth=2)
-    ax1.set_title('奖励变化')
-    ax1.set_xlabel('Episode')
-    ax1.set_ylabel('奖励')
-    ax1.grid(True, alpha=0.3)
+    if rewards and episodes:
+        ax1.plot(episodes, rewards, alpha=0.6, color='lightblue', linewidth=1)
+        if len(rewards) >= 10:
+            window_size = min(20, len(rewards) // 5)
+            moving_avg = calculate_moving_average(rewards, window_size)
+            ax1.plot(episodes, moving_avg, color='blue', linewidth=2)
+        ax1.set_title('奖励变化')
+        ax1.set_xlabel('Episode')
+        ax1.set_ylabel('奖励')
+        ax1.grid(True, alpha=0.3)
+    else:
+        ax1.text(0.5, 0.5, '暂无奖励数据', ha='center', va='center', 
+                transform=ax1.transAxes, fontsize=14,
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        ax1.set_title('奖励变化')
+        ax1.set_xlabel('Episode')
+        ax1.set_ylabel('奖励')
     
     # 2. 损失图
     ax2 = axes[0, 1]
-    if losses:
+    if losses and episodes:
         ax2.plot(episodes, losses, alpha=0.6, color='lightcoral', linewidth=1)
         if len(losses) >= 10:
             window_size = min(20, len(losses) // 5)
             moving_avg = calculate_moving_average(losses, window_size)
             ax2.plot(episodes, moving_avg, color='red', linewidth=2)
-    ax2.set_title('损失变化')
-    ax2.set_xlabel('Episode')
-    ax2.set_ylabel('损失')
-    ax2.grid(True, alpha=0.3)
+        ax2.set_title('损失变化')
+        ax2.set_xlabel('Episode')
+        ax2.set_ylabel('损失')
+        ax2.grid(True, alpha=0.3)
+    else:
+        ax2.text(0.5, 0.5, '暂无损失数据', ha='center', va='center', 
+                transform=ax2.transAxes, fontsize=14,
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        ax2.set_title('损失变化')
+        ax2.set_xlabel('Episode')
+        ax2.set_ylabel('损失')
     
     # 3. 成功率图
     ax3 = axes[1, 0]
-    if successes:
+    if successes and episodes:
         window_size = min(20, len(successes) // 5)
         success_rates = []
         for i in range(len(successes)):
@@ -571,22 +608,38 @@ def create_comprehensive_graphical_plot(episodes: List[int], rewards: List[float
                 success_rates.append(0)
         ax3.plot(episodes, success_rates, color='green', linewidth=2)
         ax3.axhline(y=0.8, color='orange', linestyle='--', alpha=0.7)
-    ax3.set_title('成功率变化')
-    ax3.set_xlabel('Episode')
-    ax3.set_ylabel('成功率')
-    ax3.set_ylim(0, 1)
-    ax3.grid(True, alpha=0.3)
+        ax3.set_title('成功率变化')
+        ax3.set_xlabel('Episode')
+        ax3.set_ylabel('成功率')
+        ax3.set_ylim(0, 1)
+        ax3.grid(True, alpha=0.3)
+    else:
+        ax3.text(0.5, 0.5, '暂无成功率数据', ha='center', va='center', 
+                transform=ax3.transAxes, fontsize=14,
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        ax3.set_title('成功率变化')
+        ax3.set_xlabel('Episode')
+        ax3.set_ylabel('成功率')
+        ax3.set_ylim(0, 1)
     
     # 4. Epsilon图
     ax4 = axes[1, 1]
-    if epsilons:
+    if epsilons and episodes:
         ax4.plot(episodes, epsilons, color='purple', linewidth=2)
         ax4.axhline(y=0.5, color='orange', linestyle='--', alpha=0.7)
-    ax4.set_title('Epsilon衰减')
-    ax4.set_xlabel('Episode')
-    ax4.set_ylabel('Epsilon')
-    ax4.set_ylim(0, 1)
-    ax4.grid(True, alpha=0.3)
+        ax4.set_title('Epsilon衰减')
+        ax4.set_xlabel('Episode')
+        ax4.set_ylabel('Epsilon')
+        ax4.set_ylim(0, 1)
+        ax4.grid(True, alpha=0.3)
+    else:
+        ax4.text(0.5, 0.5, '暂无Epsilon数据', ha='center', va='center', 
+                transform=ax4.transAxes, fontsize=14,
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        ax4.set_title('Epsilon衰减')
+        ax4.set_xlabel('Episode')
+        ax4.set_ylabel('Epsilon')
+        ax4.set_ylim(0, 1)
     
     # 添加训练信息到综合图表
     info_text = f"环境: {training_info['environment']}\n"
@@ -633,38 +686,119 @@ def calculate_std(data: List[float]) -> float:
     return math.sqrt(variance)
 
 def calculate_trend(data: List[float]) -> float:
-    """计算趋势（线性回归斜率）"""
+    """计算数据趋势"""
     if len(data) < 2:
         return 0.0
     
-    n = len(data)
-    x_sum = sum(range(n))
-    y_sum = sum(data)
-    xy_sum = sum(i * data[i] for i in range(n))
-    x2_sum = sum(i * i for i in range(n))
-    
-    # 计算斜率
-    slope = (n * xy_sum - x_sum * y_sum) / (n * x2_sum - x_sum * x_sum)
+    x = np.arange(len(data))
+    slope, _ = np.polyfit(x, data, 1)
     return slope
 
 def plot_convergence_data(data_file: str, save_dir: str = "plots", show_plots: bool = True):
-    """主函数：绘制收敛数据"""
-    # 加载数据
+    """绘制收敛数据图表"""
     data = load_convergence_data(data_file)
-    if not data:
+    if data is None:
+        print(f"无法加载数据文件: {data_file}")
         return
     
-    print(f"正在生成折线图，保存到目录: {save_dir}")
-    
-    # 创建文本格式图表
-    print("生成文本格式图表...")
     create_text_plots(data, save_dir)
-    
-    # 创建图形化图表
-    print("生成图形化图表...")
     create_graphical_plots(data, save_dir, show_plots)
+
+def create_empty_reward_plot(save_dir: str, show_plots: bool, training_info: Dict):
+    """创建空的奖励图表"""
+    plt.figure(figsize=(12, 8))
+    plt.text(0.5, 0.5, '暂无奖励数据\n无法生成奖励变化图', ha='center', va='center', 
+            transform=plt.gca().transAxes, fontsize=16, 
+            bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+    plt.title('DQN训练过程 - Episode奖励变化', fontsize=16, fontweight='bold')
+    plt.xlabel('Episode', fontsize=12)
+    plt.ylabel('奖励值', fontsize=12)
     
-    print("所有图表生成完成！")
+    # 添加训练信息
+    add_training_info_to_plot(training_info)
+    
+    plt.tight_layout()
+    
+    save_path = os.path.join(save_dir, 'rewards_plot.png')
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"空奖励折线图已保存到: {save_path}")
+    
+    if show_plots:
+        plt.show()
+    else:
+        plt.close()
+
+def create_empty_loss_plot(save_dir: str, show_plots: bool, training_info: Dict):
+    """创建空的损失图表"""
+    plt.figure(figsize=(12, 8))
+    plt.text(0.5, 0.5, '暂无损失数据\n无法生成损失变化图', ha='center', va='center', 
+            transform=plt.gca().transAxes, fontsize=16, 
+            bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+    plt.title('DQN训练过程 - Episode损失变化', fontsize=16, fontweight='bold')
+    plt.xlabel('Episode', fontsize=12)
+    plt.ylabel('损失值', fontsize=12)
+    
+    # 添加训练信息
+    add_training_info_to_plot(training_info)
+    
+    plt.tight_layout()
+    
+    save_path = os.path.join(save_dir, 'losses_plot.png')
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"空损失折线图已保存到: {save_path}")
+    
+    if show_plots:
+        plt.show()
+    else:
+        plt.close()
+
+def create_empty_success_plot(save_dir: str, show_plots: bool, training_info: Dict):
+    """创建空的成功率图表"""
+    plt.figure(figsize=(10, 5))
+    plt.text(0.5, 0.5, '暂无成功率数据\n无法生成成功率变化图', ha='center', va='center', 
+            transform=plt.gca().transAxes, fontsize=16, 
+            bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+    plt.title('DQN训练过程 - 成功率变化', fontsize=16, fontweight='bold')
+    plt.xlabel('Episode', fontsize=12)
+    plt.ylabel('成功率', fontsize=12)
+    
+    # 添加训练信息
+    add_training_info_to_plot(training_info)
+    
+    plt.tight_layout()
+    
+    save_path = os.path.join(save_dir, 'success_rates_plot.png')
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"空成功率折线图已保存到: {save_path}")
+    
+    if show_plots:
+        plt.show()
+    else:
+        plt.close()
+
+def create_empty_epsilon_plot(save_dir: str, show_plots: bool, training_info: Dict):
+    """创建空的Epsilon图表"""
+    plt.figure(figsize=(12, 8))
+    plt.text(0.5, 0.5, '暂无Epsilon数据\n无法生成Epsilon衰减图', ha='center', va='center', 
+            transform=plt.gca().transAxes, fontsize=16, 
+            bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+    plt.title('DQN训练过程 - Epsilon衰减曲线', fontsize=16, fontweight='bold')
+    plt.xlabel('Episode', fontsize=12)
+    plt.ylabel('Epsilon值', fontsize=12)
+    
+    # 添加训练信息
+    add_training_info_to_plot(training_info)
+    
+    plt.tight_layout()
+    
+    save_path = os.path.join(save_dir, 'epsilons_plot.png')
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"空Epsilon折线图已保存到: {save_path}")
+    
+    if show_plots:
+        plt.show()
+    else:
+        plt.close()
 
 # 使用示例
 if __name__ == "__main__":

@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1. 统一使用uv进行项目依赖管理，删除根路径下requirements.text文件
+2. 需要生成测试文件时在test文件夹下生成，不要在根目录下生成
+
+3. 每次需要生成文档时，不创建新的文件，在readme中调整，保持readme的简洁，可以删除不必要的内容，通常情况下把生成内容打印在控制台而非生成新的文档

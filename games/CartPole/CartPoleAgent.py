@@ -43,7 +43,18 @@ class Net(nn.Module):
 class CartPoleAgent(BaseAgent):
 
     def _init_env_and_agent(self):
-        self.env = gym.make('CartPole-v1', render_mode='human')
+        # 优化环境初始化，添加错误处理
+        try:
+            # 使用更稳定的渲染模式
+            self.env = gym.make('CartPole-v1', render_mode='human')
+        except Exception as e:
+            print(f"⚠️ 环境初始化失败，尝试使用无渲染模式: {e}")
+            try:
+                self.env = gym.make('CartPole-v1', render_mode=None)
+            except Exception as e2:
+                print(f"❌ 环境初始化完全失败: {e2}")
+                raise
+        
         self.agent = self
         self._max_steps = MEMORY_CAPACITY
         self._game_name = "CartPole"
